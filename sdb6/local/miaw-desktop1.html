@@ -5,8 +5,13 @@
 <body>
 <input type="text" id="idToken" name="idToken" size="50"></br>
 <button type="button" id="setIdentityToken" onclick="setIdentityToken()"> Confirm </button></br></br>
-<button type="button" id="clearSessionButton" onclick="clearAuthSession()"> Clear Session </button>
+<button type="button" id="clearSessionButton" onclick="clearAuthSession()"> Clear Session </button></br></br>
 
+<button type="button" id="liveRegionButton" onclick="liveRegion()"> Create live region </button>
+<input type="text" id="liveText" name="liveText" size="50"></br>
+<button type="button" id="setText" onclick="updateLiveRegion()"> Set text </button></br></br>
+
+	
 <script type='text/javascript'>	
 	function clearAuthSession() {
 		console.log("Clearing user session.");
@@ -20,6 +25,24 @@
                 "identityToken": token
             });
         }
+
+	function liveRegion() {
+		let liveRegion = document.createElement("div");
+		liveRegion.id = "liveRegion";
+		liveRegion.setAttribute("aria-live", "assertive");
+		liveRegion.setAttribute("aria-atomic", "true");
+		document.body.appendChild(liveRegion);
+	}
+
+	function updateLiveRegion() {
+		var text = document.getElementById("liveText").value;
+		let liveRegion = document.getElementById("liveRegion");
+		liveRegion.textContent = text;
+
+		setTimeout(() => {
+			liveRegion.textContent = "";
+		}, 3000);
+	}
 
 	window.addEventListener("onEmbeddedMessagingButtonCreated", (event) => {
 		console.log("Received onEmbeddedMessagingButtonCreated");
