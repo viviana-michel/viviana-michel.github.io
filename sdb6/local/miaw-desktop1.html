@@ -9,8 +9,7 @@
 
 <button type="button" id="liveRegionButton" onclick="liveRegion()"> Create live region </button>
 <input type="text" id="liveText" name="liveText" size="50"></br>
-<button type="button" id="setText"> Set text </button></br></br>
-<!-- <button type="button" id="setText" onclick="updateLiveRegion()"> Set text </button></br></br> -->
+<button type="button" id="setText" onclick="updateLiveRegion()"> Set text </button></br></br>
 
 	
 <script type='text/javascript'>	
@@ -32,6 +31,7 @@
 		liveRegion.id = "liveRegion";
 		liveRegion.setAttribute("aria-live", "assertive");
 		liveRegion.setAttribute("aria-atomic", "true");
+		liveRegion.setAttribute("style", "position: absolute; height: 1px; width: 1px; overflow: hidden; clip: rect(1px, 1px, 1px, 1px);");
 		document.body.appendChild(liveRegion);
 	}
 
