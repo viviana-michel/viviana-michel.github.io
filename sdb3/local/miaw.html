@@ -24,6 +24,11 @@
 				    "cartValue": "1000"
 				});
 			});
+
+			window.addEventListener("onEmbeddedMessagingFirstBotMessage", (event) => {
+				console.log("Received onEmbeddedMessagingFirstBotMessage");
+				console.log("Event detail: ", event.detail);
+        		});
 		</script>
 		
 		<!-- Snippet -->
