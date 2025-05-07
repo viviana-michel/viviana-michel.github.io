@@ -10,16 +10,20 @@
 	<script>document.getElementById('editThisPageLink').href = "https://github.com/ESW1234/esw1234.github.io/edit/master" + window.location.pathname;</script>
 
 	<script type='text/javascript'>
+		window.addEventListener("onEmbeddedMessagingFirstBotMessageSent", (event) => {
+		console.log("Received onEmbeddedMessagingFirstBotMessageSent");
+		console.log("Event detail: ", event.detail);
+        	});
 		function initEmbeddedMessaging() {
 			try {
 				embeddedservice_bootstrap.settings.language = 'en'; // For example, enter 'en' or 'en-US'
 				embeddedservice_bootstrap.settings.devMode = true;
-        embeddedservice_bootstrap.settings.enableUserInputForConversationWithBot = false;
+        			embeddedservice_bootstrap.settings.enableUserInputForConversationWithBot = false;
 
 				embeddedservice_bootstrap.init(
 				  '00DSB00000Ga2IE',
 				  'ASAWeb1',
-				  'https://viviana.my.site-com.viviana-michel-72dk6vs868zu1.wa.crm.dev:6101/ESWWeb21741292963318',
+				  'https://orgfarm-7e81974348.my.site-com.142vlmop5g0s08v5844q5v8qn1pb2g.wc.crm.dev:6101/ESWWeb11744215964862',
 				  {
 					  scrt2URL: 'https://dsb00000ga2ie2az.test1.my.pc-rnd.salesforce-scrt.com'
 				  }
@@ -29,6 +33,6 @@
 			}
 		};
 	</script>
-	<script type='text/javascript' src='https://viviana.my.site-com.viviana-michel-72dk6vs868zu1.wa.crm.dev:6101/ESWWeb21741292963318/assets/js/bootstrap.js' onload='initEmbeddedMessaging()'></script>
+	<script type='text/javascript' src='https://orgfarm-7e81974348.my.site-com.142vlmop5g0s08v5844q5v8qn1pb2g.wc.crm.dev:6101/ESWWeb11744215964862/assets/js/bootstrap.js' onload='initEmbeddedMessaging()'></script>
 </body>
 </html>
