@@ -1471,8 +1471,11 @@
 						warning("handleMessageEvent", "Unrecognized event name: " + e.data.method);
 						break;
 				}
-			} else if((embeddedservice_bootstrap.settings.customDomain &&  embeddedservice_bootstrap.isMessageFromCustomDomain(e.origin))
-				&& embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame().contentWindow === e.source) {
+			} else if((getSiteURL().indexOf(e.origin) === 0 && 
+				embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame().contentWindow === e.source && 
+				embeddedservice_bootstrap.isMessageFromSalesforceDomain(e.origin)) || 
+				(embeddedservice_bootstrap.settings.customDomain && 
+				embeddedservice_bootstrap.isMessageFromCustomDomain(e.origin))) {
 				let frame = embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame();
 
 				switch(e.data.method) {
@@ -5535,11 +5538,16 @@
 		});
 	};
 
+	/**
+	 * Determines if a message origin url is from configured domain. Used for filtering messages.
+	 *
+	 * @param {string} messageOriginUrl - String containing the origin url. This should end with the domain (strip off the port before passing to this function).
+	 * @return {boolean} Did message come from page specified in snippet setting?
+	 */
 	EmbeddedServiceBootstrap.prototype.isMessageFromCustomDomain = function isMessageFromCustomDomain(messageOriginUrl) {
 		var messageOrigin = messageOriginUrl.split(":")[1].replace("//", "");
 
-		return typeof embeddedservice_bootstrap.settings.customDomain === "string" 
-			&& e.origin.indexOf(embeddedservice_bootstrap.settings.customDomain) === 0 
+		return typeof embeddedservice_bootstrap.settings.customDomain === "string"
 			&& messageOrigin === embeddedservice_bootstrap.settings.customDomain;
 	};
 
