@@ -1471,7 +1471,9 @@
 						warning("handleMessageEvent", "Unrecognized event name: " + e.data.method);
 						break;
 				}
-			} else if(
+			} else if((getSiteURL().indexOf(e.origin) === 0 && 
+				embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame().contentWindow === e.source && 
+				embeddedservice_bootstrap.isMessageFromSalesforceDomain(e.origin)) || 
 				(embeddedservice_bootstrap.settings.customDomain && 
 				embeddedservice_bootstrap.isMessageFromCustomDomain(e.origin))) {
 				let frame = embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame();
@@ -3780,20 +3782,10 @@
 
 	/**
 	 * Handle the scenario where the agents are unavailable after button is clicked.
+	 * This will reset the client to initial state, enable the button with the fab icon and show a minimized notification with the custom message
 	 */
 	function handleAgentUnavailableOnButtonClick() {
-		resetClientAndShowNotification(getLabel("EmbeddedMessagingMinimizedState", "AgentUnavailableText") || MINIMIZED_NOTIFICATION_AREA_AGENT_UNAVAILABLE_DEFAULT_TEXT);
-	}
-
-	/**
-	 * This will reset the client to initial state, disable the button and show a minimized notification with the custom message taken as parameter.
-	 * @param notificationMessage - Message to be displayed in the notification area.
-	 */
-	function resetClientAndShowNotification(notificationMessage) {
 		let button;
-		let chatIcon;
-		let iconContainer;
-		let refreshIcon;
 		let minimizedNotification;
 
 		// Handle client reset and surface error state only in the primary tab.
@@ -3807,36 +3799,17 @@
 
 		// Use selectors to find DOM elements.
 		button = getEmbeddedMessagingConversationButton();
-		chatIcon = document.getElementById(EMBEDDED_MESSAGING_ICON_CHAT);
-		iconContainer = document.getElementById(EMBEDDED_MESSAGING_ICON_CONTAINER);
 
 		if(button) {
 			// Static button is displayed under client when maximized.
 			button.style.display = "block";
-
-			// [A11Y] Button is not focusable when maximized.
-			button.setAttribute("tabindex", -1);
-			button.style.setProperty("cursor", "default");
-			button.classList.add("no-hover");
-
-			// Remove the chat icon from the icon container.
-			if (iconContainer && chatIcon) {
-				iconContainer.removeChild(chatIcon);
-			}
 
 			// Hide the ReCaptcha Banner
 			if (isRecaptchaEnabled()) {
 				hideReCaptchaBanner();
 			}
 
-			// Create the minimize button markup and insert into the DOM.
-			refreshIcon = renderSVG(DEFAULT_ICONS.REFRESH);
-			refreshIcon.setAttribute("id", EMBEDDED_MESSAGING_ICON_REFRESH);
-			refreshIcon.setAttribute("class", EMBEDDED_MESSAGING_ICON_REFRESH);
-			iconContainer.appendChild(refreshIcon);
-
-			minimizedNotification = createMinimizedNotification(notificationMessage);
-			button.disabled = true;
+			minimizedNotification = createMinimizedNotification(getLabel("EmbeddedMessagingMinimizedState", "AgentUnavailableText") || MINIMIZED_NOTIFICATION_AREA_AGENT_UNAVAILABLE_DEFAULT_TEXT);
 			embeddedservice_bootstrap.settings.targetElement.appendChild(minimizedNotification);
 		}
 	}
@@ -4652,7 +4625,55 @@
 	 * Handle the scenario where the client failed to retrieve an authenticated jwt or renew a jwt.
 	 */
 	function handleJwtRetrievalFailure() {
-		resetClientAndShowNotification(getLabel("EmbeddedMessagingMinimizedState", "JWTRetrievalFailureText") || MINIMIZED_NOTIFICATION_AREA_DEFAULT_TEXT);
+		let button;
+		let chatIcon;
+		let iconContainer;
+		let refreshIcon;
+		let minimizedNotification;
+
+		// Handle client reset and surface error state only in the primary tab.
+		// In clearing the web storage, this should trigger user session clearing in secondary tabs.
+		resetClientToInitialState(false);
+
+		// Generate markup for button.
+		embeddedservice_bootstrap.generateMarkup();
+
+		// Use selectors to find DOM elements.
+		button = getEmbeddedMessagingConversationButton();
+		chatIcon = document.getElementById(EMBEDDED_MESSAGING_ICON_CHAT);
+		iconContainer = document.getElementById(EMBEDDED_MESSAGING_ICON_CONTAINER);
+
+		if(button) {
+			// Static button is displayed under client when maximized.
+			button.style.display = "block";
+
+			// [A11Y] Button is not focusable when maximized.
+			button.setAttribute("tabindex", -1);
+			button.style.setProperty("cursor", "default");
+			button.classList.add("no-hover");
+
+			// Remove the chat icon from the icon container.
+			if (iconContainer && chatIcon) {
+				iconContainer.removeChild(chatIcon);
+			}
+
+			// Hide the ReCaptcha Banner
+			if (isRecaptchaEnabled()) {
+				hideReCaptchaBanner();
+			}
+
+			// Create the minimize button markup and insert into the DOM.
+			refreshIcon = renderSVG(DEFAULT_ICONS.REFRESH);
+			refreshIcon.setAttribute("id", EMBEDDED_MESSAGING_ICON_REFRESH);
+			refreshIcon.setAttribute("class", EMBEDDED_MESSAGING_ICON_REFRESH);
+			iconContainer.appendChild(refreshIcon);
+
+			minimizedNotification = createMinimizedNotification(getLabel("EmbeddedMessagingMinimizedState", "JWTRetrievalFailureText") || MINIMIZED_NOTIFICATION_AREA_DEFAULT_TEXT);
+
+			button.disabled = true;
+
+			embeddedservice_bootstrap.settings.targetElement.appendChild(minimizedNotification);
+		}
 	}
 
 	/**
