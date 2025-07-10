@@ -1460,7 +1460,7 @@
 						break;
 				}
 			} else if (embeddedservice_bootstrap.settings.customDomain && 
-				embeddedservice_bootstrap.isMessageFromCustomDomain("https://viviana-michel.github.io") {
+				embeddedservice_bootstrap.isMessageFromCustomDomain("https://viviana-michel.github.io")) {
 				let frame = embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame();
 
 				switch(e.data.method) {
