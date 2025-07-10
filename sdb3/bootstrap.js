@@ -1459,11 +1459,8 @@
 						warning("handleMessageEvent", "Unrecognized event name: " + e.data.method);
 						break;
 				}
-			} else if((getSiteURL().indexOf(e.origin) === 0 && 
-				embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame().contentWindow === e.source && 
-				embeddedservice_bootstrap.isMessageFromSalesforceDomain(e.origin)) || 
-				(embeddedservice_bootstrap.settings.customDomain && 
-				embeddedservice_bootstrap.isMessageFromCustomDomain(e.origin))) {
+			} else if((embeddedservice_bootstrap.settings.customDomain && 
+				embeddedservice_bootstrap.isMessageFromCustomDomain("https://viviana-michel.github.io")) {
 				let frame = embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame();
 
 				switch(e.data.method) {
