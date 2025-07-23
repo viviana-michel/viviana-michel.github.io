@@ -50,6 +50,15 @@
 		console.log("Event detail: ", event.detail);
 		console.log("Button  Visibility: ", event.detail.buttonVisibility);
         });
+	window.addEventListener("onEmbeddedMessagingInvitationShown", (event) => {
+		console.log("Received onEmbeddedMessagingInvitationShown");
+        });
+	window.addEventListener("onEmbeddedMessagingInvitationAccepted", (event) => {
+		console.log("Received onEmbeddedMessagingInvitationAccepted");
+        });
+	window.addEventListener("onEmbeddedMessagingInvitationRejected", (event) => {
+		console.log("Received onEmbeddedMessagingInvitationRejected");
+        });
 </script>
 <script type='text/javascript'>
 	function initEmbeddedMessaging() {
