@@ -50,10 +50,14 @@
 		console.log("Event detail: ", event.detail);
 		console.log("Button  Visibility: ", event.detail.buttonVisibility);
         });
-
-	window.addEventListener("onEmbeddedMessagingFirstBotMessage", (event) => {
-		console.log("Received onEmbeddedMessagingFirstBotMessage");
-		console.log("Event detail: ", event.detail);
+	window.addEventListener("onEmbeddedMessagingInvitationShown", (event) => {
+		console.log("Received onEmbeddedMessagingInvitationShown");
+        });
+	window.addEventListener("onEmbeddedMessagingInvitationAccepted", (event) => {
+		console.log("Received onEmbeddedMessagingInvitationAccepted");
+        });
+	window.addEventListener("onEmbeddedMessagingInvitationRejected", (event) => {
+		console.log("Received onEmbeddedMessagingInvitationRejected");
         });
 </script>
 <script type='text/javascript'>
@@ -61,11 +65,12 @@
 		try {
 			embeddedservice_bootstrap.settings.language = 'en_US'; // For example, enter 'en' or 'en-US'
 			embeddedservice_bootstrap.settings.devMode = true;
+			embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true;
 
 			embeddedservice_bootstrap.init(
 				'00DSG000000rQdt',
 				'MIAW',
-				'https://orgfarm-ff2bb9359f.my.site-com.tltlrk52a4g31h65tvrym.wc.crm.dev:6101/ESWWeb11752130568192',
+				'https://orgfarm-c1904bb9e4.my.site-com.5u1eb6rqcgi01req851efulct1w.wb.crm.dev:6101/ESWWeb21753376656356',
 				{
 					scrt2URL: 'https://viviana-sdb6.demo.test1.my.pc-rnd.salesforce-scrt.com'
 				}
@@ -75,6 +80,10 @@
 		}
 	};
 </script>
-<script type='text/javascript' src='https://orgfarm-ff2bb9359f.my.site-com.tltlrk52a4g31h65tvrym.wc.crm.dev:6101/ESWWeb11752130568192/assets/js/bootstrap.js'  onload='initEmbeddedMessaging()'></script>
+<script type='text/javascript' src='https://orgfarm-c1904bb9e4.my.site-com.5u1eb6rqcgi01req851efulct1w.wb.crm.dev:6101/ESWWeb21753376656356/assets/js/bootstrap.js'  onload='initEmbeddedMessaging()'></script>
+
+
+
+   
 </body>
 </html>
