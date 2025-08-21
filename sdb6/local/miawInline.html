@@ -126,10 +126,10 @@
         	embeddedservice_bootstrap.utilAPI.launchChat();
     	});
 
-	window.addEventListener("onEmbeddedMessagingButtonGenerated", () => {
-        	console.log("Received the onEmbeddedMessagingButtonGenerated event.");
+	window.addEventListener("scroll", (event) => {
+        	console.log("SCROLL event.", event.target);
         
-        	embeddedservice_bootstrap.utilAPI.launchChat();
+        	//embeddedservice_bootstrap.utilAPI.launchChat();
     	});
 
 	window.addEventListener("message", (event) => {
