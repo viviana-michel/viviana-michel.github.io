@@ -127,7 +127,13 @@
     	});
 
 	window.addEventListener("scroll", (event) => {
-        	console.log("SCROLL event.", event.target);
+        	console.log("SCROLL event target", event.target);
+
+			console.log("SCROLL event current target", event.currentTarget);
+
+			console.log("SCROLL event tag name", event.target.tagName);
+
+			console.log("SCROLL event class name", event.target.className);
         
         	//embeddedservice_bootstrap.utilAPI.launchChat();
     	});
