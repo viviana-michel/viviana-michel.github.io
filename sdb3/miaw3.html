@@ -6,6 +6,35 @@
 <button type="button" id="showChatButton" onclick="showChatButton()"> Show </button></br></br>
 <button type="button" id="clearSessionButton" onclick="clearAuthSession()"> Clear Session </button>
 
+<style>
+	@media (prefers-contrast: high) {
+    /* Your high contrast styles here */
+    body {
+        background: black !important;
+        color: white !important;
+    }
+}
+	* {
+    background: black !important;
+    color: white !important;
+    border-color: white !important;
+}
+
+button, input, select, textarea {
+    background: white !important;
+    color: black !important;
+    border: 2px solid white !important;
+}
+
+a {
+    color: yellow !important;
+    text-decoration: underline !important;
+}
+
+img {
+    filter: contrast(1000%) !important;
+}
+</style>
 <script type='text/javascript'>
 	function showChatButton() {
 		embeddedservice_bootstrap.utilAPI.showChatButton();
