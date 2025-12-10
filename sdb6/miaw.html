@@ -27,8 +27,8 @@ html>
 		sendMessage();
         });
 
-	window.addEventListener("onEmbeddedMessagingPreChatSubmitted", (event) => {
-             console.log("Received onEmbeddedMessagingPreChatSubmitted");
+	window.addEventListener("embeddedmessaging_tab_focus_on_first_focusable_element", (event) => {
+             console.log("Received embeddedmessaging_tab_focus_on_first_focusable_element");
 		console.log("Event detail: ", event);
         });
 
