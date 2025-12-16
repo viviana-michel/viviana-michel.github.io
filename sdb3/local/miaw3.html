@@ -14,20 +14,6 @@
 				console.log("Clearing user session.");
 				embeddedservice_bootstrap.userVerificationAPI.clearSession();
 			}
-
-			window.addEventListener("onEmbeddedMessagingReady", () => {
-				// Embedded Messaging app ready
-				console.log("onEmbeddedMessagingReady emitted");
-				embeddedservice_bootstrap.autoResponseAPI.setAutoResponseParameters({
-				    "userName" : "Guest",
-				    "cartValue": "1000"
-				});
-			});
-
-			window.addEventListener("onEmbeddedMessagingFirstBotMessage", (event) => {
-				console.log("Received onEmbeddedMessagingFirstBotMessage");
-				console.log("Event detail: ", event.detail);
-        		});
 		</script>
 		
 		<!-- Snippet -->
@@ -39,11 +25,11 @@
 			//embeddedservice_bootstrap.settings.hideChatButtonOnLoad = true;
 
 			embeddedservice_bootstrap.init(
-				'00DSB0000007IzV',
-				'MIAW_w_Bot',
+				'00DSB00000eGLpV',
+				'Food_Options',
 				'https://orgfarm-c1904bb9e4.my.site-com.5u1eb6rqcgi01req851efulct1w.wb.crm.dev:6101/ESWWeb21753376656356',
 				{
-					scrt2URL: 'https://viviana-sdb3.demo.test1.my.pc-rnd.salesforce-scrt.com'
+					scrt2URL: 'https://orgfarm-6269ab72dd.test1.my.pc-rnd.salesforce-scrt.com'
 				}
 			);
 		} catch (err) {
