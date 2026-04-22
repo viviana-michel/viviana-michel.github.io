@@ -83,6 +83,17 @@
     </div>
 </div>
 
+<script>
+    window.addEventListener("onEmbeddedMessagingReady", (event) => {
+  		console.log("Received the onEmbeddedMessagingReady event…");
+        const iframe = document.querySelector('.embeddedMessagingFrame');
+    	iframe.addEventListener('touchmove', (e) => {
+        	e.stopPropagation();
+        	e.preventDefault();
+    	}, {passive:false});
+	});
+</script>
+
 <script type='text/javascript'>
 	function showChatButton() {
 		embeddedservice_bootstrap.utilAPI.showChatButton();
