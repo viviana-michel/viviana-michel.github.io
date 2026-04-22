@@ -39,7 +39,7 @@
 <button type="button" id="showChatButton" onclick="showChatButton()"> Show </button></br></br>
 <button type="button" id="clearSessionButton" onclick="clearAuthSession()"> Clear Session </button>
 <div class="container">
-	<div class="scrollable-content column left-column">
+	<div class="scrollable-content column">
         <h1>Scrollable Page Content</h1>
         
         <div class="content-section">
@@ -113,7 +113,6 @@
             <p>Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
         </div>
     </div>
-	<div class="miaw-chat column right-column" id="rightColumn"></div>
 </div>
 
 <script type='text/javascript'>
@@ -157,8 +156,8 @@
 			embeddedservice_bootstrap.settings.shouldMinimizeWindowOnNewTab = true;
 			//embeddedservice_bootstrap.settings.customDomain = "viviana-michel.github.io";
 			embeddedservice_bootstrap.settings.sseRetryEnhancement = true;
-			embeddedservice_bootstrap.settings.displayMode = "inline";
-			embeddedservice_bootstrap.settings.targetElement = document.getElementById('rightColumn');
+			// embeddedservice_bootstrap.settings.displayMode = "inline";
+			// embeddedservice_bootstrap.settings.targetElement = document.getElementById('rightColumn');
 
 			embeddedservice_bootstrap.init(
 				'00DSB0000007IzV',
