@@ -2,118 +2,9 @@
 <head>
 	<meta name="viewport" content="width=device-width, interactive-widget=resizes-content, initial-scale=1, minimum-scale=1">
 </head>
-<style>
-	@media (prefers-contrast: high) {
-    /* Your high contrast styles here */
-    body {
-        background: black !important;
-        color: white !important;
-    }
-}
-	.container {
-            display: flex;
-            min-height: 100vh;
-            max-width: 100%;
-        }
-
-        /* Column base styles */
-        .column {
-            padding: 20px;
-            overflow-y: auto;
-        }
-
-        /* Left column - 2/3 width */
-        .left-column {
-            flex: 2;
-            background-color: white;
-            border-right: 1px solid #ddd;
-        }
-
-        /* Right column - 1/3 width */
-        .right-column {
-            flex: 1;
-			height: 800px;
-        }
-</style>
 <body>
 <button type="button" id="showChatButton" onclick="showChatButton()"> Show </button></br></br>
 <button type="button" id="clearSessionButton" onclick="clearAuthSession()"> Clear Session </button>
-<div class="container">
-	<div class="scrollable-content column">
-        <h1>Scrollable Page Content</h1>
-        
-        <div class="content-section">
-            <h2>Section 1</h2>
-            <p>This is the first section of content. Scroll down to see more sections.</p>
-            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 2</h2>
-            <p>This is the second section with more content to make the page scrollable.</p>
-            <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 3</h2>
-            <p>Third section with additional content to ensure scrolling is needed.</p>
-            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 4</h2>
-            <p>Fourth section to add more scrollable content.</p>
-            <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 5</h2>
-            <p>Fifth section with even more content to make sure the page is definitely scrollable.</p>
-            <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 6</h2>
-            <p>Final section to complete the scrollable page.</p>
-            <p>Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
-        </div>
-		<div class="content-section">
-            <h2>Section 1</h2>
-            <p>This is the first section of content. Scroll down to see more sections.</p>
-            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 2</h2>
-            <p>This is the second section with more content to make the page scrollable.</p>
-            <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 3</h2>
-            <p>Third section with additional content to ensure scrolling is needed.</p>
-            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 4</h2>
-            <p>Fourth section to add more scrollable content.</p>
-            <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 5</h2>
-            <p>Fifth section with even more content to make sure the page is definitely scrollable.</p>
-            <p>Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.</p>
-        </div>
-        
-        <div class="content-section">
-            <h2>Section 6</h2>
-            <p>Final section to complete the scrollable page.</p>
-            <p>Totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.</p>
-        </div>
-    </div>
-</div>
 
 <script type='text/javascript'>
 	function showChatButton() {
@@ -151,13 +42,11 @@
 	function initEmbeddedMessaging() {
 		try {
 			embeddedservice_bootstrap.settings.language = 'en_US'; // For example, enter 'en' or 'en-US'
-      			embeddedservice_bootstrap.settings.devMode = true;
+      		embeddedservice_bootstrap.settings.devMode = true;
 			//embeddedservice_bootstrap.settings.chatButtonPosition = "300px , 300px"
 			embeddedservice_bootstrap.settings.shouldMinimizeWindowOnNewTab = true;
-			//embeddedservice_bootstrap.settings.customDomain = "viviana-michel.github.io";
-			embeddedservice_bootstrap.settings.sseRetryEnhancement = true;
-			// embeddedservice_bootstrap.settings.displayMode = "inline";
-			// embeddedservice_bootstrap.settings.targetElement = document.getElementById('rightColumn');
+			embeddedservice_bootstrap.settings.restrictSessionOnMessagingChannel = true;
+			
 
 			embeddedservice_bootstrap.init(
 				'00DSB0000007IzV',
@@ -172,7 +61,7 @@
 		}
 	};
 </script>
-<script type='text/javascript' src='https://viviana-michel.github.io/sdb3/bootstrap.js' onload='initEmbeddedMessaging()'></script>
+<script type='text/javascript' src='https://viviana-sdb3.demo.test1.my.pc-rnd.site.com/ESWMIAWwBot1686262279430/assets/js/bootstrap.js' onload='initEmbeddedMessaging()'></script>
 
 
    
