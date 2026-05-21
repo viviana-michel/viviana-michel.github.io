@@ -6,6 +6,12 @@
 /**
  * Where possible, we changed noninclusive terms to align with our company value of Equality. We maintained certain terms to avoid any effect on customer implementations.
  */
+import { validatePrechatField } from './utils/prechatUtils.ts';
+import { validateAutoResponseParameter } from './utils/postchatUtils.ts';
+import { EVENT } from './utils/events.ts';
+import LoggingUtils from './utils/loggingUtils.ts';
+import BusinessHoursUtils from './utils/businessHoursUtils.ts';
+
 (() => {
 	/**
 	 * Conversation button class constants.
@@ -61,7 +67,8 @@
 	const MINIMIZED_NOTIFICATION_AREA_TEXT_WRAPPER_CLASS = MINIMIZED_NOTIFICATION_AREA_CLASS + "TextWrapper";
 	const MINIMIZED_NOTIFICATION_AREA_TEXT_CLASS = MINIMIZED_NOTIFICATION_AREA_CLASS + "Text";
 	const MINIMIZED_NOTIFICATION_AREA_DEFAULT_TEXT = "Something went wrong. Log in again to continue your messaging conversation.";
-	const MINIMIZED_NOTIFICATION_AREA_AGENT_UNAVAILABLE_DEFAULT_TEXT = "All Agents are unavailable at this moment. Please try again!";
+	const MINIMIZED_NOTIFICATION_AREA_AGENT_UNAVAILABLE_DEFAULT_TEXT = "Service reps are not available right now. Try again later.";
+	const MINIMIZED_NOTIFICATION_AREA_INVITATIONS_DEFAULT_TEXT = "Have questions? Let’s chat";
 	const MINIMIZED_NOTIFICATION_AREA_DEFAULT_ASSISTIVE_TEXT = "Expand the text.";
 	const MINIMIZED_NOTIFICATION_DISMISS_BTN_CLASS = MINIMIZED_NOTIFICATION_AREA_CLASS + "DismissButton";
 	const MINIMIZED_NOTIFICATION_DISMISS_BTN_ID = "dismissButton-help";
@@ -77,16 +84,11 @@
 	const EMBEDDED_MESSAGING_ICON = "embeddedMessagingIcon";
 	const EMBEDDED_MESSAGING_ICON_CHAT = EMBEDDED_MESSAGING_ICON + "Chat";
 	const EMBEDDED_MESSAGING_ICON_CONTAINER = EMBEDDED_MESSAGING_ICON + "Container";
-	const EMBEDDED_MESSAGING_ICON_LOADING = EMBEDDED_MESSAGING_ICON + "Loading";
 	const EMBEDDED_MESSAGING_ICON_MINIMIZE = EMBEDDED_MESSAGING_ICON + "Minimize";
-	const EMBEDDED_MESSAGING_ICON_REFRESH = EMBEDDED_MESSAGING_ICON + "Refresh";
-
-	/**
-	 * Loading constants.
-	 */
-	const EMBEDDED_MESSAGING_LOADING = "embeddedMessagingLoading";
-	const EMBEDDED_MESSAGING_LOADING_SPINNER = EMBEDDED_MESSAGING_LOADING + "Spinner";
-	const EMBEDDED_MESSAGING_LOADING_CIRCLE = EMBEDDED_MESSAGING_LOADING + "Circle";
+	const EMBEDDED_MESSAGING_ICON_ERROR = EMBEDDED_MESSAGING_ICON + "Error";
+	const EMBEDDED_MESSAGING_ICON_PROGRESS_INDICATOR = EMBEDDED_MESSAGING_ICON + "ProgressIndicator";
+	const EMBEDDED_MESSAGING_ICON_INNER_ARC = EMBEDDED_MESSAGING_ICON + "InnerArc";
+	const EMBEDDED_MESSAGING_ICON_OUTER_ARC = EMBEDDED_MESSAGING_ICON + "OuterArc";
 
 	/**
 	 * SCRT Paths
@@ -98,13 +100,13 @@
 	const UNAUTHENTICATED_PATH = "/unauthenticated";
 	const AUTHENTICATED_PATH = "/authenticated";
 	const QUERIES_PATH = "/queries";
-	const CAPABILITIES_PATH = "/device/registerDeviceCapabilities";
 	const UNAUTHENTICATED_ACCESS_TOKEN_PATH = IN_APP_API_PREFIX + IN_APP_API_VERSION + AUTHORIZATION_PATH + UNAUTHENTICATED_PATH + ACCESS_TOKEN_PATH;
 	const AUTHENTICATED_ACCESS_TOKEN_PATH = IN_APP_API_PREFIX + IN_APP_API_VERSION + AUTHORIZATION_PATH + AUTHENTICATED_PATH + ACCESS_TOKEN_PATH;
+	const EXCHANGE_AUTHENTICATED_ACCESS_TOKEN_PATH = IN_APP_API_PREFIX + IN_APP_API_VERSION + AUTHORIZATION_PATH + "/exchange/access-token";
 	const CONVERSATION_PATH = IN_APP_API_PREFIX + IN_APP_API_VERSION + "/conversation";
 	const CONTINUITY_ACCESS_TOKEN_PATH = IN_APP_API_PREFIX + IN_APP_API_VERSION + AUTHORIZATION_PATH +  "/continuityAccessToken";
+	const AUTH_LINK_PATH = IN_APP_API_PREFIX + IN_APP_API_VERSION + AUTHORIZATION_PATH + "/authlink";
 	const LIST_CONVERSATIONS_PATH = IN_APP_API_PREFIX + IN_APP_API_VERSION + QUERIES_PATH + "/conversation/list";
-	const REGISTER_DEVICE_CAPABILITIES_PATH = IN_APP_API_PREFIX + IN_APP_API_VERSION + CAPABILITIES_PATH;
 	const TRANSCRIPT_PATH = "/transcript";
 
 	/**
@@ -114,67 +116,23 @@
 	const EXP_SITE_SESSION_TIMEOUT = "/_nc_external/system/security/session/SessionTimeServlet?buster=";
 
 	/**
+	 * Client name passed to accessToken endpoints for Client Attribution (scrt.clientName JWT claim / MDC).
+	 */
+	const CLIENT_NAME = {
+		WEB_V1: "Web_v1"
+	};
+
+	/**
 	 * Capabilities version to be passed as part of Access Token request to register capabilities of the app.
 	 * Notes:
 	 * 1. The version number is merely a representation and a contract with the IA-Message service and does not necessarily represent the core version. Bump this number when new capabilities are introduced to be supported.
-	 * 2. Ensure the version number passed in Access Token request to match the version passed in RegisterDeviceCapabilities endpoint request.
-	 * 3. Maintain the same version here and in embeddedMessaging#constants.js
+	 * 2. Maintain the same version here and in embeddedMessaging#constants.js
 	 * @type {string}
 	 */
-	const capabilitiesVersion = "254";
+	const capabilitiesVersion = "260";
 
-	// TODO: W-13475085 - confirm event names with CX.
-	const APP_LOADED_EVENT_NAME = "ESW_APP_LOADED";
-	const APP_INIT_ERROR_EVENT_NAME = "ESW_APP_INITIALIZATION_ERROR";
-	const APP_MINIMIZE_EVENT_NAME = "ESW_APP_MINIMIZE";
-	const APP_MAXIMIZE_EVENT_NAME = "ESW_APP_MAXIMIZE";
-	const EMBEDDED_MESSAGING_SET_JWT_EVENT_NAME = "ESW_SET_JWT_EVENT";
-	const EMBEDDED_MESSAGING_CLEAR_WEBSTORAGE_EVENT_NAME = "ESW_CLEAR_WEBSTORAGE_EVENT";
-	const EMBEDDED_MESSAGING_APP_READY_EVENT_NAME = "ESW_APP_READY_EVENT";
-	const EMBEDDED_MESSAGING_SET_CONFIG_EVENT_NAME = "ESW_SET_CONFIG_EVENT";
-	const APP_RESET_INITIAL_STATE_EVENT_NAME = "ESW_APP_RESET_INITIAL_STATE";
-	const EMBEDDED_MESSAGING_DOWNLOAD_FILE = "ESW_DOWNLOAD_FILE";
-	const EMBEDDED_MESSAGING_UPDATE_WEBSTORAGE_FAILEDMESSAGES_EVENT_NAME = "ESW_SET_WEBSTORAGE_FAILEDMESSAGES_EVENT";
-	const EMBEDDED_MESSAGING_CLEAN_UP_WEBSTORAGE_FAILEDMESSAGES_EVENT_NAME = "ESW_CLEAN_UP_WEBSTORAGE_FAILEDMESSAGES_EVENT";
-	const EMBEDDED_MESSAGING_MAXIMIZE_RESIZING_COMPLETED_EVENT_NAME = "ESW_APP_MAXIMIZATION_RESIZING_COMPLETED";
-	const EMBEDDED_MESSAGING_MINIMIZE_RESIZING_COMPLETED_EVENT_NAME = "ESW_APP_MINIMIZATION_RESIZING_COMPLETED";
-	const EMBEDDED_MESSAGING_UPDATE_TITLE_NOTIFICATION = "ESW_APP_UPDATE_TITLE_NOTIFICATION";
-	const EMBEDDED_MESSAGING_3P_STORAGE_READY_EVENT_NAME = "ESW_3RDPARTY_STORAGE_READY";
-	const EMBEDDED_MESSAGING_SHOW_FILE_PREVIEW_FRAME_EVENT_NAME = "ESW_APP_SHOW_FILE_PREVIEW_FRAME";
-	const EMBEDDED_MESSAGING_HIDE_FILE_PREVIEW_FRAME_EVENT_NAME = "ESW_APP_HIDE_FILE_PREVIEW_FRAME";
-	const APP_REQUEST_HIDDEN_PRECHAT_FIELDS_EVENT_NAME = "ESW_APP_SEND_HIDDEN_PRECHAT_FIELDS";
-	const APP_RECEIVE_HIDDEN_PRECHAT_FIELDS_EVENT_NAME = "ESW_APP_RECEIVE_HIDDEN_PRECHAT_FIELDS";
-	const APP_REQUEST_AUTORESPONSE_PARAMETERS_EVENT_NAME = "ESW_APP_SEND_AUTORESPONSE_PARAMETERS";
-	const APP_RECEIVE_AUTORESPONSE_PARAMETERS_EVENT_NAME = "ESW_APP_RECEIVE_AUTORESPONSE_PARAMETERS";
-	const EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME = "EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT";
-	const EMBEDDED_MESSAGING_CLEAR_USER_SESSION_EVENT_NAME = "EMBEDDED_MESSAGING_CLEAR_USER_SESSION_EVENT";
-	const EMBEDDED_MESSAGING_FOCUS_ON_LAST_FOCUSABLE_ELEMENT_EVENT_NAME = "trapfocustolast";
-	const EMBEDDED_MESSAGING_IDENTITY_TOKEN_EXPIRED_EVENT_NAME = "EMBEDDED_MESSAGING_IDENTITY_TOKEN_EXPIRED_EVENT";
-	const EMBEDDED_MESSAGING_SET_IDENTITY_TOKEN_EVENT_NAME = "EMBEDDED_MESSAGING_SET_IDENTITY_TOKEN_EVENT";
-	const EMBEDDED_MESSAGING_JWT_RETRIEVAL_FAILURE_EVENT_NAME = "EMBEDDED_MESSAGING_JWT_RETRIEVAL_FAILURE_EVENT";
-	const EMBEDDED_MESSAGING_3P_STORAGE_RESPONSE_EVENT_NAME = "ESW_3RDPARTY_STORAGE_RESPONSE";
-	const EMBEDDED_MESSAGING_3P_STORAGE_REQUEST_EVENT_NAME = "ESW_3RDPARTY_STORAGE_REQUEST";
-	const EMBEDDED_MESSAGING_3P_STORAGE_SET_ITEMS_EVENT_NAME = "ESW_3RDPARTY_STORAGE_SET_ITEMS";
-	const EMBEDDED_MESSAGING_3P_STORAGE_CLEAR_ITEMS_EVENT_NAME = "ESW_3RDPARTY_STORAGE_CLEAR";
-	const EMBEDDED_MESSAGING_3P_STORAGE_SET_OBJECTS_EVENT_NAME = "ESW_3RDPARTY_STORAGE_SET_OBJECTS";
-	const APP_PRECHAT_SUBMIT = "ESW_APP_PRECHAT_SUBMIT";
-	const APP_SHOW_MINIMIZED_STATE_NOTIFICATION = "ESW_APP_SHOW_MINIMIZED_STATE_NOTIFICATION";
-	const EMBEDDED_MESSAGING_PUSH_PARENT_FRAME_LOGS = "EMBEDDED_MESSAGING_PUSH_PARENT_FRAME_LOGS";
-	const EMBEDDED_MESSAGING_PUSH_VISIBLE_PRECHAT_FIELDS = "EMBEDDED_MESSAGING_PUSH_VISIBLE_PRECHAT_FIELDS";
-	const EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_EVENT_NAME = "EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_EVENT";
-	const EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_SUCCESS_EVENT_NAME = "EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_SUCCESS_EVENT";
-	const EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_ERROR_EVENT_NAME = "EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_ERROR_EVENT";
-	const EMBEDDED_MESSAGING_PREFETCH_EVENT_NAME = "ESW_PREFETCH_LWR_RESOURCES";
-	const EMBEDDED_MESSAGING_APP_AFTER_REFRESH = "EMBEDDED_MESSAGING_APP_AFTER_REFRESH";
-	const EMBEDDED_MESSAGING_DISPATCH_EVENT_TO_HOST = "EMBEDDED_MESSAGING_DISPATCH_EVENT_TO_HOST";
-	const EMBEDDED_MESSAGING_PUBLIC_SEND_TEXT_MESSAGE_API_REQUEST_EVENT_NAME = "EMBEDDED_MESSAGING_PUBLIC_SEND_TEXT_MESSAGE_API_REQUEST";
-	const EMBEDDED_MESSAGING_PUBLIC_SEND_TEXT_MESSAGE_API_RESPONSE_EVENT_NAME = "EMBEDDED_MESSAGING_PUBLIC_SEND_TEXT_MESSAGE_API_RESPONSE";
-	const EMBEDDED_MESSAGING_CONVO_ERROR_DATA_RECEIVED_EVENT_NAME = "EMBEDDED_MESSAGING_CONVO_ERROR_DATA_RECEIVED";
-	const EMBEDDED_MESSAGING_SCREENREADER_ANNOUNCEMENT = "EMBEDDED_MESSAGING_SCREENREADER_ANNOUNCEMENT";
-	const EMBEDDED_MESSAGING_INVITATIONS_CONDITIONS_MET = "EMBEDDED_MESSAGING_INVITATIONS_CONDITIONS_MET";
 	const ERR_MESSAGE_ORG_NOT_SUPPORTED = "ORG_NOT_SUPPORTED";
 	const ERR_MESSAGE_ORG_UNDER_MAINTENANCE = "ORG_UNDER_MAINTENANCE";
-	const EMBEDDED_MESSAGING_TEXT_MESSAGE_LINK_CLICK = "EMBEDDED_MESSAGING_TEXT_MESSAGE_LINK_CLICK";
 
 	/**
 	 * Conversation transcript file name.
@@ -191,6 +149,11 @@
 	const HEX_BASE = 16;
 
 	/**
+	 * Color constants used for to determine hover color.
+	 */
+	const THRESHOLD_LUMINANCE = 0.027321;
+
+	/**
 	 * Parameters for the identity token data object passed in via
 	 * embeddedservice_bootstrap.userVerificationAPI.setIdentityToken API call.
 	 */
@@ -204,6 +167,7 @@
 	 */
 	const AUTH_MODE = {
 		AUTH: "Auth",
+		EXCHANGE_JWT_AUTH: "ExchangeJWTAuth",
 		UNAUTH: "UnAuth",
 		EXP_SITE_AUTH: "ExperienceSiteAuth"
 	}
@@ -338,6 +302,37 @@
 			const blue = parseInt(hex.slice(5, 7), HEX_BASE);
 			return { r: red, g: green, b: blue };
 		}
+
+		/**
+		 * Converts rgb value to its corresponding HEX representation.
+		 * @param {number} r - The red component value
+		 * @param {number} g - The green component value
+	     * @param {number} b - The blue component value
+		 * @returns {string} The hexadecimal color string in format "#RRGGBB"
+		 */
+		static convertRGBToHex(r,g,b) {
+			return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+		}
+
+		/**
+		 * Returns a hover background color that adapts based on the input color's luminance.
+		 * 
+		 * @param {string} hexColor - The input color in hex format
+		 * @returns {string} The hover color in hex format
+		 */
+		static getHoverBackgroundColor(hexColor) {
+			const rgb = this.convertHexToRGB(hexColor);
+
+			// For colors with low luminance (darker than threshold), the function lightens the color.
+			// For colors with high luminance (lighter than threshold), the function darkens the color.
+			const inputLuminance = this.getRelativeLuminance(rgb).toFixed(6);
+			const shadeFactor = inputLuminance >= THRESHOLD_LUMINANCE ? -22 : 22;
+
+			const updatedR = Math.max(0, rgb.r + shadeFactor);
+			const updatedG = Math.max(0, rgb.g + shadeFactor);
+			const updatedB = Math.max(0, rgb.b + shadeFactor);
+			return this.convertRGBToHex(updatedR, updatedG, updatedB);
+		}
 	}
 
 	/**
@@ -346,7 +341,7 @@
 	 * @returns {boolean} Returns true if the color contrast meets the accessibility threshold, otherwise false.
 	 */
 	function hasConversationButtonColorContrastMetA11yThreshold() {
-		return ColorContrastAccessibility.isValidContrastRatio(WHITE_HEX_CODE, getButtonColorFromBrandingConfig());
+		return ColorContrastAccessibility.isValidContrastRatio(WHITE_HEX_CODE, getTokenValueFromBrandingConfig("chatButton"));
 	};
 
 	/**
@@ -399,18 +394,6 @@
 	 * @type {string}
 	 */
 	const ON_EMBEDDED_MESSAGING_ID_TOKEN_EXPIRED_EVENT_NAME = "onEmbeddedMessagingIdentityTokenExpired";
-
-	/**
-	 * Event dispatched to notify the host that it is currently inside business hours.
-	 * @type {string}
-	 */
-	const ON_EMBEDDED_MESSAGING_BUSINESS_HOURS_STARTED_EVENT_NAME = "onEmbeddedMessagingBusinessHoursStarted";
-
-	/**
-	 * Event dispatched to notify the host that it is currently outside business hours.
-	 * @type {string}
-	 */
-	const ON_EMBEDDED_MESSAGING_BUSINESS_HOURS_ENDED_EVENT_NAME = "onEmbeddedMessagingBusinessHoursEnded";
 
 	/**
 	 * Event dispatched to notify the Channel Menu that visibility of the Embedded Messaging channel is changing.
@@ -481,6 +464,24 @@
 	 */
 	const ON_EMBEDDED_MESSAGE_LINK_CLICKED_EVENT_NAME = "onEmbeddedMessageLinkClicked";
 
+	/**
+	 * Event dispatched to notify the host that invitation is shown.
+	 * @type {string}
+	 */
+	const ON_EMBEDDED_MESSAGING_INVITATION_SHOWN_EVENT_NAME = "onEmbeddedMessagingInvitationShown";
+
+	/**
+	 * Event dispatched to notify the host that invitation is accpeted.
+	 * @type {string}
+	 */
+	const ON_EMBEDDED_MESSAGING_INVITATION_ACCEPTED_EVENT_NAME = "onEmbeddedMessagingInvitationAccepted";
+
+	/**
+	 * Event dispatched to notify the host that invitation is rejected.
+	 * @type {string}
+	 */
+	const ON_EMBEDDED_MESSAGING_INVITATION_REJECTED_EVENT_NAME = "onEmbeddedMessagingInvitationRejected";
+
 	const SALESFORCE_DOMAINS = [
 		// Used by dev, blitz, and prod instances
 		".salesforce.com",
@@ -511,7 +512,8 @@
 	 * Identity token types supported by our application.
 	 */
 	const ID_TOKEN_TYPE = {
-		JWT: "JWT"
+		JWT: "JWT",
+		EXCHANGE_JWT: "ExchangeJWT"
 	};
 
 	/**
@@ -519,6 +521,7 @@
 	 */
 	const IN_APP_SCRT2_API_PREFIX = "embeddedservice";
 	const IN_APP_SCRT2_API_VERSION = "v1";
+	const IN_APP_SCRT2_API_VERSION_TWO = "v2";
 
 	/**
 	 * Default document title of the page.
@@ -536,7 +539,27 @@
 	 * Interval for calling agent availability API
 	 * @type {number}
 	 */
-	const AGENT_AVAILABILITY_TIMEOUT_MS = 30000;
+	const AGENT_AVAILABILITY_TIMEOUT_MS = 60000;
+
+	/**
+	 * Constants for exponential backoff on 429 errors
+	 * @type {number}
+	 */
+	const AGENT_AVAILABILITY_BACKOFF_BASE_MS = 60000; // Base delay: 60 seconds
+	const AGENT_AVAILABILITY_BACKOFF_MAX_MS = 600000; // Max delay: 10 minutes
+	const AGENT_AVAILABILITY_BACKOFF_MULTIPLIER = 2; // Double the delay each time
+
+	/**
+	 * Track backoff state for agent availability API calls
+	 * @type {number}
+	 */
+	let agentAvailabilityBackoffDelay = AGENT_AVAILABILITY_BACKOFF_BASE_MS;
+
+	/**
+	 * Timestamp when backoff period expires (0 means no backoff active)
+	 * @type {number}
+	 */
+	let agentAvailabilityBackoffUntil = 0;
 
 	/**
 	 * Store the client-id returned by reCaptcha to be used while executing reCaptcha
@@ -635,6 +658,11 @@
 	});
 
 	/**
+	 * LoggingUtils instance
+	 */
+	let loggingUtils;
+
+	/**
 	 * resolver function called when iframe for sitecontext.html is ready
 	 */
 	let siteContextReady;
@@ -668,14 +696,9 @@
 	let originalViewportMetaTag;
 
 	/**
-	 * Store the business hours intervals.
+	 * BusinessHoursUtils instance
 	 */
-	let businessHoursInterval;
-
-	/**
-	 * Store the business hours timer, determines the visibility of the chat button when invoked.
-	 */
-	let businessHoursTimer;
+	let businessHoursUtils;
 
 	/**
 	 * Store the experience site user session timer, determines if the session is still valid.
@@ -707,7 +730,9 @@
 		FAILED_OUTBOUND_MESSAGE_ENTRIES: "FAILED_MESSAGES",
 		CONVERSATION_BUTTON_CLICK_TIME: "CONVERSATION_BUTTON_CLICK_TIME",
 		PAGE_COUNT : "PAGE_COUNT",
-		SITE_TIME : "SITE_TIME"
+		SITE_TIME : "SITE_TIME",
+		INVITATION_ACCEPTED: "INVITATION_ACCEPTED",
+		INVITATION_REJECTED: "INVITATION_REJECTED"
 	};
 
 	/**
@@ -735,11 +760,12 @@
 	};
 
 	/**
-	 * Resolve function for the promise returned by the embeddedservice_bootstrap.userVerificationAPI.clearSession() API.
-	 * Tracking the function as an internal property allows us to resolve the promise outside clearSession().
+	 * Resolve and Reject functions for the promise returned by the embeddedservice_bootstrap.userVerificationAPI.clearSession() API.
+	 * Tracking the function as an internal property allows us to resolve/reject the promise outside clearSession().
 	 * @type {function}
 	 */
 	let clearUserSessionPromiseResolve;
+	let clearUserSessionPromiseReject;
 
 	/**
 	 * Resolve and Reject functions for the promise returned by the embeddedservice_bootstrap.utilAPI.sendTextMessage() API.
@@ -762,14 +788,6 @@
 	 */
 	let setIdentityTokenResolve;
 
-	/**
-	 * Internal in-memory object populated with current-state and error logs from bootstrap for later to be process and pushed to Splunk in embeddedMessagingFrame#container.
-	 * @type {object}
-	 */
-	let embeddedMessagingLogs = {
-		currentStateLogs: [],
-		errorLogs: []
-	};
 
 	/**
 	 * This is a resolver function for when the app (container) has
@@ -807,6 +825,19 @@
 	 */
 	let agentAvailabilityTimer;
 
+	/**
+	 * Flag to track whether current tab is visible
+	 */
+	let isTabActive = true;
+
+	/**
+	 * Tracks the trace headers generated on the client side to pass into ia-message APIs for e2e traceability.
+	 */
+	const traceHeaders = {
+		"x-b3-traceId": undefined,
+		"x-b3-spanId": undefined
+	}
+
 	/******************************************************
 	 Web storage functions
 	 This is copied from embeddedService:webStorageUtils.js.
@@ -841,7 +872,7 @@
 
 		// Initialize 3P storage
 		if (localStorageObj || sessionStorageObj) {
-			sendPostMessageToSiteContextIframe(EMBEDDED_MESSAGING_3P_STORAGE_SET_OBJECTS_EVENT_NAME,
+			sendPostMessageToSiteContextIframe(EVENT.EMBEDDED_MESSAGING_3P_STORAGE_SET_OBJECTS_EVENT_NAME,
 				{"orgId" : embeddedservice_bootstrap.settings.orgId, "localStorageObj" : localStorageObj,
 					"sessionStorageObj" : sessionStorageObj});
 		}
@@ -901,7 +932,7 @@
 			log("setItemInWebStorage", `${key} set in ${inLocalStorage ? "localStorage" : "sessionStorage"}`);
 
 			if (sendToThirdParty) {
-				sendPostMessageToSiteContextIframe(EMBEDDED_MESSAGING_3P_STORAGE_SET_ITEMS_EVENT_NAME,
+				sendPostMessageToSiteContextIframe(EVENT.EMBEDDED_MESSAGING_3P_STORAGE_SET_ITEMS_EVENT_NAME,
 					{"orgId" : embeddedservice_bootstrap.settings.orgId, "key" : key, "value" : value, "inLocalStorage" : inLocalStorage});
 			}
 		}
@@ -926,6 +957,36 @@
 	}
 
 	/**
+	 * Preserves specific properties within the main storageKey JSON object while clearing all other data.
+	 * 
+	 * @returns {void}
+	 */
+	function clearLocalStorageWithPreservation() {
+		const keysToPreserve = [STORAGE_KEYS.INVITATION_ACCEPTED, STORAGE_KEYS.INVITATION_REJECTED];
+		let preservedData = {};
+		const localStorageObj = localStorage.getItem(storageKey);
+
+		if (localStorageObj) {
+			try {
+				const parsed = JSON.parse(localStorageObj);
+				keysToPreserve.forEach(key => {
+					if (parsed[key] !== undefined) {
+						preservedData[key] = parsed[key];
+					}
+				});
+			} catch (error) {
+				console.warn('Failed to parse localStorage data:', error);
+			}
+		}
+
+		localStorage.removeItem(storageKey);
+
+		if (Object.keys(preservedData).length > 0) {
+			localStorage.setItem(storageKey, JSON.stringify(preservedData));
+		}
+	}
+
+	/**
 	 * Clear all client side stored items in both localStorage & sessionStorage. Post message to clear 3rd party web storage.
 	 * @param isSecondaryTab - Whether we are clearing the web storage in a secondary tab after a primary tab has already
 	 * 						   cleared localStorage. Don't clear localStorage again in this case to avoid re-triggering
@@ -934,12 +995,18 @@
 	 */
 	function clearWebStorage(isSecondaryTab) {
 		if (embeddedservice_bootstrap.isLocalStorageAvailable && !Boolean(isSecondaryTab)) {
-			localStorage.removeItem(storageKey);
+			if (hasInvitationsEnabled()) {
+				clearLocalStorageWithPreservation();
+			} else {
+				localStorage.removeItem(storageKey);
+			}
 		}
+
 		if (embeddedservice_bootstrap.isSessionStorageAvailable) {
 			sessionStorage.removeItem(storageKey);
 		}
-		sendPostMessageToSiteContextIframe(EMBEDDED_MESSAGING_3P_STORAGE_CLEAR_ITEMS_EVENT_NAME, embeddedservice_bootstrap.settings.orgId);
+
+		sendPostMessageToSiteContextIframe(EVENT.EMBEDDED_MESSAGING_3P_STORAGE_CLEAR_ITEMS_EVENT_NAME, embeddedservice_bootstrap.settings.orgId);
 		log("clearWebStorage", `web storage cleared`);
 	}
 
@@ -987,7 +1054,7 @@
 		updateTitleNotification();
 
 		// Reset in-memory logs generated in bootstrap.
-		cleanUpEmbeddedMessagingLogs();
+		loggingUtils.cleanUpEmbeddedMessagingLogs();
 
 		// Reset in-memory pre-populate prechat data.
 		cleanUpPrepopulateVisiblePrechat();
@@ -1037,38 +1104,13 @@
 	}
 
 	/**
-	 * Output to the console using a specified method.
-	 *
-	 * @param {string} method - The console method to use.
-	 * @param {Array.<*>} args - Objects to be displayed comma-delimited.
-	 * @param {boolean} alwaysOutput - Always log to console regardless of devMode setting.
-	 */
-	function outputToConsole(method, args, alwaysOutput) {
-		if((alwaysOutput || Boolean(embeddedservice_bootstrap.settings.devMode)) && console && console[method]) { // eslint-disable-line no-console
-			console[method]("[EmbeddedServiceBootstrap] " + (Array.isArray(args) ? args.join(", ") : args)); // eslint-disable-line no-console
-		}
-	}
-
-	/**
 	 * Log a message to the console.
 	 *
 	 * @param {string} method - Name of caller.
 	 * @param {string} message - The log message to print and optionally push to Splunk.
-	 * @param {boolean} alwaysOutput - Always log to console regardless of devMode setting.
 	 */
-	function log(method, message, alwaysOutput) {
-		outputToConsole("log", message, alwaysOutput);
-
-		const obj = {};
-		Object.assign(obj, {
-			configDev: embeddedservice_bootstrap.settings.eswConfigDevName,
-			method: method ? method : "",
-			stateMessage: message ? `[bootstrap][timestamp: ${Date.now()}] ${message}` : "",
-			convId: conversationId,
-			convType: getAuthMode(),
-			hostUrl: window.location.href
-		});
-		processEmbeddedMessagingLogs(obj);
+	function log(method, message) {
+		loggingUtils.log(method, message);
 	}
 
 	/**
@@ -1076,25 +1118,9 @@
 	 *
 	 * @param {string} method - Name of caller.
 	 * @param {string} message - The warning message to print.
-	 * @param {boolean} alwaysOutput - Always log to console regardless of devMode setting.
 	 */
-	function warning(method, message, alwaysOutput) {
-		if(message) {
-			outputToConsole("warn", "Warning: " + message, alwaysOutput);
-		} else {
-			outputToConsole("warn", "EmbeddedServiceBootstrap sent an anonymous warning.", alwaysOutput);
-		}
-
-		const obj = {};
-		Object.assign(obj, {
-			configDev: embeddedservice_bootstrap.settings.eswConfigDevName,
-			method: method ? method : "",
-			stateMessage: message ? `[bootstrap][timestamp: ${Date.now()}] ${message}` : "",
-			convId: conversationId,
-			convType: getAuthMode(),
-			hostUrl: window.location.href
-		});
-		processEmbeddedMessagingLogs(obj);
+	function warning(method, message) {
+		loggingUtils.warning(method, message);
 	}
 
 	/**
@@ -1103,26 +1129,9 @@
 	 * @param {string} method - Name of caller.
 	 * @param {string} message - The error message to print.
 	 * @param {string} errorCode - Optional error code if the caller was a network request.
-	 * @param {boolean} alwaysOutput - Always log to console regardless of devMode setting.
 	 */
-	function error(method, message, errorCode, alwaysOutput) {
-		if(message) {
-			outputToConsole("error", message, alwaysOutput);
-		} else {
-			outputToConsole("error", "EmbeddedServiceBootstrap responded with an unspecified error.", alwaysOutput);
-		}
-
-		const obj = {};
-		Object.assign(obj, {
-			configDev: embeddedservice_bootstrap.settings.eswConfigDevName,
-			method: method ? method : "",
-			errMessage: message ? `[bootstrap][timestamp: ${Date.now()}] ${message}` : "",
-			...(errorCode && {errCode: errorCode}),
-			convId: conversationId,
-			convType: getAuthMode(),
-			hostUrl: window.location.href
-		});
-		processEmbeddedMessagingLogs(null, obj);
+	function error(method, message, errorCode) {
+		loggingUtils.error(method, message, errorCode);
 	}
 
 	/**
@@ -1169,6 +1178,36 @@
 		}
 
 		return res;
+	}
+
+	/**
+	* Generates a 16 byte x-b3-traceId for e2e traceability of ia-message APIs.
+	 * @returns {string}
+	 */
+	function generateTraceId() {
+		try {
+			const bytes = new Uint8Array(16);
+			crypto.getRandomValues(bytes); // Cryptographically secure random bytes
+			return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+		} catch(e) {
+			error('generateTraceId', `Error generating a x-b3-traceId: ${e}`);
+			return '';
+		}
+	}
+
+	/**
+	 * Generates a 8 byte x-b3-spanId for e2e traceability of ia-message APIs.
+	 * @returns {string}
+	 */
+	function generateSpanId() {
+		try {
+			const bytes = new Uint8Array(8);
+			crypto.getRandomValues(bytes); // Cryptographically secure random bytes
+			return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+		} catch(e) {
+			error('generateSpanId', `Error generating a x-b3-spanId: ${e}`);
+			return '';
+		}
 	}
 
 	/******************************************************
@@ -1359,7 +1398,9 @@
 			...((typeof embeddedservice_bootstrap.settings.enableUserInputForConversationWithBot === "boolean") && {enableUserInputForConversationWithBot: Boolean(embeddedservice_bootstrap.settings.enableUserInputForConversationWithBot)}),
 			...((typeof embeddedservice_bootstrap.settings.shouldShowParticipantChgEvntInConvHist === "boolean") && {shouldShowParticipantChgEvntInConvHist: Boolean(embeddedservice_bootstrap.settings.shouldShowParticipantChgEvntInConvHist)}),
 			shouldMinimizeWindowOnNewTab: embeddedservice_bootstrap.settings.shouldMinimizeWindowOnNewTab,
-			...((typeof embeddedservice_bootstrap.settings.disableStreamingResponses === "boolean") && {disableStreamingResponses: Boolean(embeddedservice_bootstrap.settings.disableStreamingResponses)})
+			...((typeof embeddedservice_bootstrap.settings.disableStreamingResponses === "boolean") && {disableStreamingResponses: Boolean(embeddedservice_bootstrap.settings.disableStreamingResponses)}),
+			...((typeof embeddedservice_bootstrap.settings.sseRetryEnhancement === "boolean") && {sseRetryEnhancement: Boolean(embeddedservice_bootstrap.settings.sseRetryEnhancement)}),
+			...((typeof embeddedservice_bootstrap.settings.showStartNewSessionCTA === "boolean") && {showStartNewSessionCTA: Boolean(embeddedservice_bootstrap.settings.showStartNewSessionCTA)})
 		};
 
 		const finalConfigurationData = Object.assign({}, embeddedservice_bootstrap.settings.embeddedServiceConfig, {
@@ -1376,7 +1417,8 @@
 			...(getAuthMode() === AUTH_MODE.EXP_SITE_AUTH && {expSiteUrl: embeddedservice_bootstrap.settings.snippetConfig.expSiteUrl}),
 			...(embeddedservice_bootstrap.settings.displayMode && {displayMode: embeddedservice_bootstrap.settings.displayMode}),
 			snippetSettings,
-			capabilitiesVersion: capabilitiesVersion
+			capabilitiesVersion: capabilitiesVersion,
+			traceHeaders: traceHeaders
 		});
 
 		return finalConfigurationData || {};
@@ -1393,12 +1435,17 @@
 			addStorageEventHandlers();
 		}
 
+		// Detect document visibility change
+		document.addEventListener('visibilitychange', function () {
+			isTabActive = document.visibilityState === 'visible';
+		});
+
 		try {
 			// Monitor if the page was refreshed in the same tab.
 			const observer = new PerformanceObserver((list) => {
 				list.getEntries().forEach((entry) => {
 					if (entry.type === "reload") {
-						sendPostMessageToAppIframe(EMBEDDED_MESSAGING_APP_AFTER_REFRESH);
+						sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_APP_AFTER_REFRESH);
 					}
 				})
 			});
@@ -1443,10 +1490,10 @@
 			if(embeddedservice_bootstrap.filePreviewFrame && embeddedservice_bootstrap.filePreviewFrame.contentWindow === e.source) {
 				// Handle events from File Preview Iframe window.
 				switch(e.data.method) {
-					case EMBEDDED_MESSAGING_SHOW_FILE_PREVIEW_FRAME_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_SHOW_FILE_PREVIEW_FRAME_EVENT_NAME:
 						setFilePreviewFrameVisibility(true);
 						break;
-					case EMBEDDED_MESSAGING_HIDE_FILE_PREVIEW_FRAME_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_HIDE_FILE_PREVIEW_FRAME_EVENT_NAME:
 						setFilePreviewFrameVisibility(false);
 						break;
 					default:
@@ -1455,10 +1502,10 @@
 				}
 			} else if(embeddedservice_bootstrap.siteContextFrame && embeddedservice_bootstrap.siteContextFrame.contentWindow === e.source) {
 				switch(e.data.method) {
-					case EMBEDDED_MESSAGING_3P_STORAGE_READY_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_3P_STORAGE_READY_EVENT_NAME:
 						siteContextReady();
 						break;
-					case EMBEDDED_MESSAGING_3P_STORAGE_RESPONSE_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_3P_STORAGE_RESPONSE_EVENT_NAME:
 						if (e.data.data && e.data.data.localStorage){
 							setItemsInWebStorage(e.data.data.localStorage, localStorage);
 						}
@@ -1472,88 +1519,95 @@
 						break;
 				}
 			} else if((getSiteURL().indexOf(e.origin) === 0 && 
-				embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame().contentWindow === e.source && 
+				(embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame() 
+				&& embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame().contentWindow === e.source) && 
 				embeddedservice_bootstrap.isMessageFromSalesforceDomain(e.origin)) || 
 				(embeddedservice_bootstrap.settings.customDomain && 
 				embeddedservice_bootstrap.isMessageFromCustomDomain(e.origin))) {
 				let frame = embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame();
 
 				switch(e.data.method) {
-					case EMBEDDED_MESSAGING_APP_READY_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_APP_READY_EVENT_NAME:
 						//resolve the promise, this may cause waiting messages to be sent to iframe window
 						resolveLwrIframeReady();
 						break;
-					case APP_LOADED_EVENT_NAME:
+					case EVENT.APP_LOADED_EVENT_NAME:
 						handleAfterAppLoad();
 						break;
-					case APP_INIT_ERROR_EVENT_NAME:
+					case EVENT.APP_INIT_ERROR_EVENT_NAME:
 						handleInitializationError();
 						break;
-					case APP_MINIMIZE_EVENT_NAME:
+					case EVENT.APP_MINIMIZE_EVENT_NAME:
 						embeddedservice_bootstrap.minimizeIframe(frame, e.data.data);
 						break;
-					case APP_MAXIMIZE_EVENT_NAME:
+					case EVENT.APP_MAXIMIZE_EVENT_NAME:
 						embeddedservice_bootstrap.maximizeIframe(frame, e.data.data);
 						break;
-					case APP_RESET_INITIAL_STATE_EVENT_NAME:
+					case EVENT.APP_RESET_INITIAL_STATE_EVENT_NAME:
 						resetClientToInitialState();
 						break;
 					//TODO: W-12546287 remove this when we no longer renew authenticated jwt in container.
-					case EMBEDDED_MESSAGING_SET_JWT_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_SET_JWT_EVENT_NAME:
 						setAndStoreJwt(e.data.data);
 						break;
-					case EMBEDDED_MESSAGING_CLEAR_WEBSTORAGE_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_CLEAR_WEBSTORAGE_EVENT_NAME:
 						clearWebStorage();
 						break;
-					case EMBEDDED_MESSAGING_DOWNLOAD_FILE:
+					case EVENT.EMBEDDED_MESSAGING_DOWNLOAD_FILE:
 						downloadFile(e.data.data);
 						break;
-					case EMBEDDED_MESSAGING_UPDATE_WEBSTORAGE_FAILEDMESSAGES_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_UPDATE_WEBSTORAGE_FAILEDMESSAGES_EVENT_NAME:
 						storeFailedMessagesInWebStorage(e.data.data);
 						break;
-					case EMBEDDED_MESSAGING_CLEAN_UP_WEBSTORAGE_FAILEDMESSAGES_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_CLEAN_UP_WEBSTORAGE_FAILEDMESSAGES_EVENT_NAME:
 						removeItemInWebStorage(STORAGE_KEYS.FAILED_OUTBOUND_MESSAGE_ENTRIES);
 						break;
-					case EMBEDDED_MESSAGING_UPDATE_TITLE_NOTIFICATION:
+					case EVENT.EMBEDDED_MESSAGING_UPDATE_TITLE_NOTIFICATION:
 						updateTitleNotification(e.data.data);
 						break;
-					case APP_REQUEST_HIDDEN_PRECHAT_FIELDS_EVENT_NAME:
+					case EVENT.APP_REQUEST_HIDDEN_PRECHAT_FIELDS_EVENT_NAME:
 						/**
 						 * Send Hidden Prechat fields to the container when they are requested, to ensure most recent values are received in the container
 						 * at the time of submitting Prechat form (if enabled).
 						 * This event is exchanged only when Prechat is enabled in the setup.
 						 */
-						sendPostMessageToAppIframe(APP_RECEIVE_HIDDEN_PRECHAT_FIELDS_EVENT_NAME, hiddenPrechatFields);
+						sendPostMessageToAppIframe(EVENT.APP_RECEIVE_HIDDEN_PRECHAT_FIELDS_EVENT_NAME, hiddenPrechatFields);
 						break;
-					case APP_REQUEST_AUTORESPONSE_PARAMETERS_EVENT_NAME:
-						sendPostMessageToAppIframe(APP_RECEIVE_AUTORESPONSE_PARAMETERS_EVENT_NAME, autoResponseParameters);
+					case EVENT.APP_REQUEST_AUTORESPONSE_PARAMETERS_EVENT_NAME:
+						sendPostMessageToAppIframe(EVENT.APP_RECEIVE_AUTORESPONSE_PARAMETERS_EVENT_NAME, autoResponseParameters);
 						break;
-					case EMBEDDED_MESSAGING_IDENTITY_TOKEN_EXPIRED_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_IDENTITY_TOKEN_EXPIRED_EVENT_NAME:
 						handleIdentityTokenExpiredEvent();
 						break;
-					case EMBEDDED_MESSAGING_JWT_RETRIEVAL_FAILURE_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_JWT_RETRIEVAL_FAILURE_EVENT_NAME:
 						handleJwtRetrievalFailure();
 						break;
-					case APP_PRECHAT_SUBMIT:
+					case EVENT.APP_PRECHAT_SUBMIT:
 						handlePrechatSubmit(e.data.data);
 						break;
-					case APP_SHOW_MINIMIZED_STATE_NOTIFICATION:
+					case EVENT.APP_SHOW_MINIMIZED_STATE_NOTIFICATION:
 						handleShowMinimizedStateNotification();
 						break;
-					case EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_EVENT_NAME:
 						handleRequestTranscript();
 						break;
-					case EMBEDDED_MESSAGING_DISPATCH_EVENT_TO_HOST:
+					case EVENT.EMBEDDED_MESSAGING_DISPATCH_EVENT_TO_HOST:
 						dispatchEventToHost(e.data.data && e.data.data.eventName, {detail: (e.data.data.eventDetails || {})});
 						break;
-					case EMBEDDED_MESSAGING_PUBLIC_SEND_TEXT_MESSAGE_API_RESPONSE_EVENT_NAME:
+					case EVENT.EMBEDDED_MESSAGING_PUBLIC_SEND_TEXT_MESSAGE_API_RESPONSE_EVENT_NAME:
 						handleSendTextMessageResponse(e.data.data);
 						break;
-					case EMBEDDED_MESSAGING_TEXT_MESSAGE_LINK_CLICK:
+					case EVENT.EMBEDDED_MESSAGING_TEXT_MESSAGE_LINK_CLICK:
 						handleLinkClick(e);
-            			break;
-					case EMBEDDED_MESSAGING_SCREENREADER_ANNOUNCEMENT:
+						break;
+					case EVENT.EMBEDDED_MESSAGING_SCREENREADER_ANNOUNCEMENT:
 						handleScreenReaderAnnouncement(e.data.data);
+						break;
+					case EVENT.ESW_APP_RESET_AND_RELAUNCH_EVENT_NAME:
+						handleAppResetAndRelaunch();
+						break;
+					case EVENT.EMBEDDED_MESSAGING_CLEAR_USER_SESSION_ERROR:
+						clearUserSessionPromiseReject(e.data.data);
 						break;
 					default:
 						warning("handleMessageEvent", "Unrecognized event name: " + e.data.method);
@@ -1561,9 +1615,24 @@
 				}
 			} else if (e.origin === window.location.origin && e.source === window){
 				switch(e.data.method) {
-					case EMBEDDED_MESSAGING_INVITATIONS_CONDITIONS_MET:
+					case EVENT.EMBEDDED_MESSAGING_INVITATIONS_NO_CONDITIONS_CONFIGURED:
+						log("handleMessageEvent", "Invitation is enabled but no conditions configured");
+						break;
+					case EVENT.EMBEDDED_MESSAGING_INVITATIONS_RULE_TREE_CREATED:
+                        log("handleMessageEvent", `Invitations rule tree created from formula: ${e.data.data.formula}`);
+                        break;
+					case EVENT.EMBEDDED_MESSAGING_INVITATIONS_RULE_TREE_EVALUATED:
+						log("handleMessageEvent", `Invitations rule tree evaluated with result: ${e.data.data.result}`);
+						break;
+					case EVENT.EMBEDDED_MESSAGING_INVITATIONS_CONDITIONS_MET:
 						handleInvitationConditionsMet();
 						break;
+					case EVENT.EMBEDDED_MESSAGING_INVITATIONS_RULE_TREE_CREATION_ERROR:
+						error("handleMessageEvent", `Failed to create invitations rule tree with formula "${e.data.data.formula}": ${e.data.data.error}`);
+						break;
+					case EVENT.EMBEDDED_MESSAGING_INVITATIONS_RULE_TREE_EVALUATION_ERROR:
+                        error("handleMessageEvent", `Failed to evaluate invitations rule tree: ${e.data.data.error}`);
+                        break;
 					default:
 						warning("handleMessageEvent", "Unrecognized event name: " + e.data.method);
 						break;
@@ -1571,6 +1640,28 @@
 			} else {
 				error("handleMessageEvent", `Unexpected message origin: ${e.origin}`);
 			}
+		}
+	}
+
+	/**
+	 * Resets the client using clearSession() API and relaunches the client using launchChat() API.
+	 */
+	function handleAppResetAndRelaunch() {
+		// Handle only for Unauth conversations.
+		if (!isUserVerificationEnabled()) {
+			/**
+			 * 1. End the conversation and reset the client in Unauth.
+			 * 2. Launch the client.
+			 */
+			embeddedservice_bootstrap.userVerificationAPI.clearSession().then(() => {
+				embeddedservice_bootstrap.utilAPI.launchChat().then(() => {
+					log("handleAppResetAndRelaunch", "Reset and Relaunched the client.");
+				}).catch((err) => {
+					error("handleAppResetAndRelaunch", `Failed to Reset and Relaunch the client: ${err}`);
+				});
+			}).catch((err) => {
+				error("handleAppResetAndRelaunch", `Failed to Reset and Relaunch the client: ${err}`);
+			})
 		}
 	}
 
@@ -1613,6 +1704,13 @@
 	 * Dispatch event to host for the first click only
 	 */
 	function onConversationButtonClick() {
+		// If invitation is currently shown, clicking on conversation button is an invitation accept
+		const invitationNotification = document.getElementById(MINIMIZED_NOTIFICATION_AREA_CLASS);
+
+		if (invitationNotification && invitationNotification.getAttribute("is-invitation") === "true") {
+			handleInvitationNotificationAction(true);
+		}
+
 		dispatchEventToHost(ON_EMBEDDED_MESSAGING_BUTTON_CLICKED_EVENT_NAME);
 		return handleClick();
 	}
@@ -1669,7 +1767,7 @@
 		hasEmbeddedMessagingInitFailureEventFired = true;
 		try {
 			// Send any pending logs to container, to be pushed to Splunk, even if app initialization fails.
-			processEmbeddedMessagingLogs();
+			loggingUtils.processEmbeddedMessagingLogs();
 			dispatchEventToHost(ON_EMBEDDED_MESSAGING_INIT_ERROR_EVENT_NAME);
 		} catch(err) {
 			hasEmbeddedMessagingInitFailureEventFired = false;
@@ -1861,13 +1959,14 @@
 			window.open(fileDownloadIframe.src, '_blank', 'noreferrer noopener');
 		}
 		/**
-		 * Add a small delay before executing Javascript execution queue, to avoid page navigation interruption.
-		 * https://kb.webtrends.com/articles/Information/NS-BINDING-ABORTED-status-message-in-http-debugger/?l=en_US&fs=RelatedArticle
+		 * Delay iframe removal until the response headers have committed; otherwise removing it aborts the
+		 * in-flight request with ERR_ABORTED. 30s comfortably outlasts realistic TTFB on slow networks /
+		 * CDH validation and aligns with typical HTTP request timeouts.
 		 */
 		setTimeout(() => {
 			// Cleanup - remove iframe from the DOM.
 			document.body.removeChild(fileDownloadIframe);
-		}, 1000);
+		}, 30000);
 	}
 
 	/**
@@ -1925,58 +2024,53 @@
 
 	/**
 	 * Load the agent availability from SCRT 2.0 stack.
+	 * @returns {Promise<{agentAvailable: boolean, isRateLimited: boolean}>} Returns agent availability status and rate limit flag
 	 */
 	function getAgentAvailabilityData() {
-		const agentAvailabilityURL = embeddedservice_bootstrap.settings.scrt2URL + "/" + IN_APP_SCRT2_API_PREFIX + "/" + IN_APP_SCRT2_API_VERSION +
+		const agentAvailabilityURL = embeddedservice_bootstrap.settings.scrt2URL + "/" + IN_APP_SCRT2_API_PREFIX + "/" + IN_APP_SCRT2_API_VERSION_TWO +
 			"/agent-availability?orgId=" + embeddedservice_bootstrap.settings.orgId + "&esConfigName=" +
 			embeddedservice_bootstrap.settings.eswConfigDevName;
 
 		return sendXhrRequest(agentAvailabilityURL, "GET", "getAgentAvailabilityData")
 			.then((agentAvailabilityResponse) => {
+				// Reset backoff on successful response
+				agentAvailabilityBackoffDelay = AGENT_AVAILABILITY_BACKOFF_BASE_MS;
+				agentAvailabilityBackoffUntil = 0;
 				if (Boolean(agentAvailabilityResponse.success)) {
-					return Boolean(agentAvailabilityResponse.response.agentAvailable) || false;
+					return {
+						agentAvailable: Boolean(agentAvailabilityResponse.response.agentAvailable) || false,
+						isRateLimited: false
+					};
 				} else {
 					error("getAgentAvailabilityData", `Failed to retrieve Agent Availability data. Returning the default value as False. Error : ${agentAvailabilityResponse.error.message}`, agentAvailabilityResponse.error.errorCode);
-					return false;
+					return {
+						agentAvailable: false,
+						isRateLimited: false
+					};
 				}
 			})
 			.catch((exception) => {
-				error("getAgentAvailabilityData", `Failed to retrieve Agent Availability data. Returning the default value as False ${exception}`);
-				return false;
-			});
-	}
-
-	/**
-	 * Get business hours data from the business hours endpoint.
-	 * The API will always retuns the next 2 BH intervals,
-	 * so with that being true, the intervals will never start off stale.
-	 * But for sake of simplification, we are only storing one interval at a time.
-	 */
-	function getBusinessHoursInterval() {
-		const eswConfigDevName = embeddedservice_bootstrap.settings.eswConfigDevName;
-		const orgId = embeddedservice_bootstrap.settings.orgId;
-
-		const endpoint = embeddedservice_bootstrap.settings.scrt2URL + "/" + IN_APP_SCRT2_API_PREFIX + "/" + IN_APP_SCRT2_API_VERSION +
-			"/businesshours?orgId=" + orgId + "&esConfigName=" + eswConfigDevName;
-
-		return sendXhrRequest(endpoint, "GET", "getBusinessHoursInterval").then(
-			response => {
-				const businessHoursInfo = response && response.businessHoursInfo;
-
-				log("getBusinessHoursInterval", "Successfully retrieved Business Hours data");
-
-				if (businessHoursInfo && Array.isArray(businessHoursInfo.businessHours) && businessHoursInfo.businessHours.length > 0) {
-					businessHoursInterval = {
-						startTime: businessHoursInfo.businessHours[0].startTime,
-						endTime: businessHoursInfo.businessHours[0].endTime
-					};
-					setupBusinessHoursTimer();
+				// Check if this is a 429 rate limit error
+				const isRateLimited = exception === 429;
+				if (isRateLimited) {
+					// Apply exponential backoff
+					agentAvailabilityBackoffDelay = Math.min(
+						agentAvailabilityBackoffDelay * AGENT_AVAILABILITY_BACKOFF_MULTIPLIER,
+						AGENT_AVAILABILITY_BACKOFF_MAX_MS
+					);
+					error("getAgentAvailabilityData", `Rate limited (429). Applying backoff delay of ${agentAvailabilityBackoffDelay}ms`);
+				} else {
+					// For non-429 errors, reset backoff to base delay
+					agentAvailabilityBackoffDelay = AGENT_AVAILABILITY_BACKOFF_BASE_MS;
+					agentAvailabilityBackoffUntil = 0;
+					error("getAgentAvailabilityData", `Failed to retrieve Agent Availability data. Returning the default value as False ${exception}`);
 				}
-			}
-		).catch(e => {
-				throw e;
-			}
-		);
+				
+				return {
+					agentAvailable: false,
+					isRateLimited: isRateLimited
+				};
+			});
 	}
 
 	/**
@@ -1985,7 +2079,7 @@
 	 */
 	function handleBusinessHoursError(err) {
 		error("handleBusinessHoursError", `Failed to retrieve Business Hours data. Retrying the request.`, err);
-		return getBusinessHoursInterval();
+		return businessHoursUtils.loadBusinessHours();
 	}
 
 	/**
@@ -2031,7 +2125,7 @@
 	}
 
 	/**
-	 * Send an HTTP request using fetch with a specified path, and method.
+	 * Send an HTTP request using fetch with a specified path, and method .
 	 * @returns {Promise}
 	 */
 	function sendXhrRequest(apiPath, method, caller) {
@@ -2137,7 +2231,7 @@
 		}
 
 		configData.isExistingSessionOnPageLoad = isPageLoad;
-		sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_CONFIG_EVENT_NAME, configData);
+		sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_CONFIG_EVENT_NAME, configData);
 	}
 
 	/**
@@ -2166,11 +2260,11 @@
 			handleListConversation().then((existingConversationData) => {
 				if (existingConversationData && existingConversationData.isExistingConversation) {
 					log("handlePrechatSubmit", `Pre-chat submitted but a conversation already exits for the verified user. Joining the existing conversation.`);
-					sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, existingConversationData);
+					sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, existingConversationData);
 				} else {
 					log("handlePrechatSubmit", `Pre-chat submitted. Creating a new conversation.`);
 					handleCreateNewConversation(prechatFields).then((conversationData) => {
-						sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, conversationData);
+						sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, conversationData);
 					});
 				}
 			});
@@ -2179,15 +2273,15 @@
 				log("handlePrechatSubmit", `Pre-chat submitted but a JWT exists in web storage. Fetching existing conversations.`);
 				messagingJwt = getItemInWebStorageByKey(STORAGE_KEYS.JWT);
 				handleGetContinuityJwt().then((jwtData) => {
-					sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_JWT_EVENT_NAME, jwtData);
+					sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_JWT_EVENT_NAME, jwtData);
 					handleListConversation().then((existingConversationData) => {
 						if (existingConversationData && existingConversationData.isExistingConversation) {
 							log("handlePrechatSubmit", `Pre-chat submitted but a conversation already exits for the unverified user. Joining the existing conversation.`);
-							sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, existingConversationData);
+							sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, existingConversationData);
 						} else {
 							log("handlePrechatSubmit", `Pre-chat submitted and no existing conversations found. Creating a new conversation.`);
 							handleCreateNewConversation(prechatFields).then((conversationData) => {
-								sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, conversationData);
+								sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, conversationData);
 							});
 						}
 					});
@@ -2195,9 +2289,9 @@
 			} else {
 				log("handlePrechatSubmit", `Pre-chat submitted. Fetching a JWT and starting a new conversation.`);
 				handleGetUnauthenticatedJwt().then((jwtData) => {
-					sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_JWT_EVENT_NAME, jwtData);
+					sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_JWT_EVENT_NAME, jwtData);
 					handleCreateNewConversation(prechatFields).then((conversationData) => {
-						sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, conversationData);
+						sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_CONVERSATION_DATA_EVENT_NAME, conversationData);
 					});
 				});
 			}
@@ -2294,8 +2388,8 @@
 	function sendUnauthenticatedJwtRequest(requestBody) {
 		const deviceInfoAsQueryParams = getDeviceInfoAsQueryParams();
 		const endpoint = deviceInfoAsQueryParams ?
-			embeddedservice_bootstrap.settings.scrt2URL.concat(UNAUTHENTICATED_ACCESS_TOKEN_PATH, "?", deviceInfoAsQueryParams) :
-			embeddedservice_bootstrap.settings.scrt2URL.concat(UNAUTHENTICATED_ACCESS_TOKEN_PATH);
+			embeddedservice_bootstrap.settings.scrt2URL.concat(UNAUTHENTICATED_ACCESS_TOKEN_PATH, "?", deviceInfoAsQueryParams, "&", `clientName=${CLIENT_NAME.WEB_V1}`) :
+			embeddedservice_bootstrap.settings.scrt2URL.concat(UNAUTHENTICATED_ACCESS_TOKEN_PATH, "?", `clientName=${CLIENT_NAME.WEB_V1}`);
 
 		return sendRequest(
 			endpoint,
@@ -2351,11 +2445,22 @@
 	 * @returns {Promise<unknown>}
 	 */
 	function handleGetAuthenticatedJwt() {
-		const jwtPromise = getAuthMode() === AUTH_MODE.EXP_SITE_AUTH ? getExpSiteAuthenticatedJwt() : getAuthenticatedJwt();
+		let jwtPromise;
+		const authMode = getAuthMode();
+
+		if (authMode === AUTH_MODE.EXP_SITE_AUTH) {
+			jwtPromise = getExpSiteAuthenticatedJwt();
+		} else if (authMode === AUTH_MODE.AUTH) {
+			jwtPromise = getAuthenticatedJwt();
+		} else if (authMode === AUTH_MODE.EXCHANGE_JWT_AUTH) {
+			jwtPromise = getExchangeAuthenticatedJwt();
+		} else {
+			throw new Error(`Invalid auth mode for authenticated jwt flow: ${authMode}.`);
+		}
 
 		return jwtPromise
 			.then(response => {
-				const jwtData = getAuthMode() === AUTH_MODE.EXP_SITE_AUTH ? response.data : response;
+				const jwtData = authMode === AUTH_MODE.EXP_SITE_AUTH ? response.data : response;
 				setAndStoreJwt(jwtData.accessToken);
 				log("handleGetAuthenticatedJwt", "Successfully retreived an Authenticated JWT");
 				return jwtData;
@@ -2380,7 +2485,7 @@
 		const platformType = "Web";
 
 		const endpoint = embeddedservice_bootstrap.settings.snippetConfig.expSiteUrl + EXP_SITE_ACCESS_TOKEN_PATH
-			+ `?platformType=${platformType}&developerName=${developerName}&capabilitiesVersion=${capabilitiesVersion}`;
+			+ `?platformType=${platformType}&developerName=${developerName}&capabilitiesVersion=${capabilitiesVersion}&clientName=${CLIENT_NAME.WEB_V1}`;
 		const method = "GET";
 		const mode = "cors";
 		const caller = "getExpSiteAuthenticatedJwt";
@@ -2412,8 +2517,8 @@
 		const customerIdentityToken = identityToken;
 		const deviceInfoAsQueryParams = getDeviceInfoAsQueryParams();
 		const apiPath = deviceInfoAsQueryParams ?
-			embeddedservice_bootstrap.settings.scrt2URL.concat(AUTHENTICATED_ACCESS_TOKEN_PATH, "?", deviceInfoAsQueryParams) :
-			embeddedservice_bootstrap.settings.scrt2URL.concat(AUTHENTICATED_ACCESS_TOKEN_PATH);
+			embeddedservice_bootstrap.settings.scrt2URL.concat(AUTHENTICATED_ACCESS_TOKEN_PATH, "?", deviceInfoAsQueryParams, "&", `clientName=${CLIENT_NAME.WEB_V1}`) :
+			embeddedservice_bootstrap.settings.scrt2URL.concat(AUTHENTICATED_ACCESS_TOKEN_PATH, "?", `clientName=${CLIENT_NAME.WEB_V1}`);
 		const method = "POST";
 		const mode = "cors";
 		const requestHeaders = {"Content-Type": "application/json"};
@@ -2484,31 +2589,98 @@
 	}
 
 	/**
-	 * Handles registering device capabilities with RegisterDeviceCapabilities ia-message endpoint.
+	 * Handle getting an authenticated jwt through identity token exchange.
+	 *
+	 * @returns {Promise}
 	 */
-	function handleRegisterDeviceCapabilities() {
-		registerDeviceCapabilities()
-			.then(() => {
-				log("handleRegisterDeviceCapabilities", "Successfully Registered Device Capabilities.");
+	function getExchangeAuthenticatedJwt() {
+		const developerName = embeddedservice_bootstrap.settings.eswConfigDevName;
+		const customerIdentityToken = identityToken;
+
+		const deviceInfoAsQueryParams = getDeviceInfoAsQueryParams();
+
+		const apiPath = deviceInfoAsQueryParams ?
+			embeddedservice_bootstrap.settings.scrt2URL.concat(EXCHANGE_AUTHENTICATED_ACCESS_TOKEN_PATH, "?", deviceInfoAsQueryParams, "&", `clientName=${CLIENT_NAME.WEB_V1}`) :
+			embeddedservice_bootstrap.settings.scrt2URL.concat(EXCHANGE_AUTHENTICATED_ACCESS_TOKEN_PATH, "?", `clientName=${CLIENT_NAME.WEB_V1}`);
+
+		let requestBody = {
+			developerName,
+			capabilitiesVersion
+		};
+
+		const method = "POST";
+		const mode = "cors";
+		const caller = "getExchangeAuthenticatedJwt";
+
+		if (isRecaptchaEnabled()) {
+			let recaptchaPromise = handleReCaptchaTokenGeneration();
+			return recaptchaPromise.then((captchaToken) => {
+				if (!captchaToken) {
+					throw new Error('ReCaptcha token generation failed at client.');
+				}
+				requestBody.captchaToken = captchaToken;
+				return sendExchangeAuthenticatedJwtRequest(apiPath, method, mode, customerIdentityToken, requestBody, caller);
 			});
+		}
+
+		return sendExchangeAuthenticatedJwtRequest(apiPath, method, mode, customerIdentityToken, requestBody, caller);
 	}
 
 	/**
-	 * Makes a network request to RegisterDeviceCapabilities ia-message endpoint to register device capabilities for the version specified in the request.
+	 * Send a JWT request for an exchange-jwt authenticated user.
 	 *
-	 * Endpoint info: https://confluence.internal.salesforce.com/pages/viewpage.action?pageId=842335446
+	 * @param {string} apiPath - Endpoint for exchange access token request.
+	 * @param {string} method - HTTP method.
+	 * @param {string} mode - Fetch mode.
+	 * @param {string} customerIdentityToken - Customer supplied identity token.
+	 * @param {Object} requestBody - Request body payload.
+	 * @param {string} caller - Caller name for logging.
+	 * @returns {Promise}
 	 */
-	function registerDeviceCapabilities() {
-		const apiPath = embeddedservice_bootstrap.settings.scrt2URL.concat(REGISTER_DEVICE_CAPABILITIES_PATH);
+	function sendExchangeAuthenticatedJwtRequest(apiPath, method, mode, customerIdentityToken, requestBody, caller) {
+		let requestHeaders = {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${customerIdentityToken}`
+		};
 
-		return sendRequest(
-			apiPath,
-			"POST",
-			"cors",
-			null,
-			{},
-			"registerDeviceCapabilities"
-		);
+		if (customerIdentityToken && validateJwt(customerIdentityToken)) {
+			return sendFetchRequest(apiPath, method, mode, requestHeaders, requestBody, caller)
+				.then(response => {
+					if (isRecaptchaEnabled()) {
+						hideReCaptchaBanner();
+					}
+					if (!response.ok) {
+						throw response;
+					}
+					return response.json();
+				})
+				.catch(err => {
+					if (isRecaptchaEnabled()) {
+						hideReCaptchaBanner();
+					}
+					return handleSendFetchRequestError(err, apiPath, method, mode, requestHeaders, requestBody, caller);
+				});
+		}
+
+		return new Promise(resolve => {
+			handleIdentityTokenExpiry({
+				apiPath,
+				method,
+				mode,
+				requestHeaders,
+				requestBody,
+				resolve,
+				updateAuthOnTokenRefresh: true
+			});
+		}).then(response => {
+			if (isRecaptchaEnabled()) {
+				hideReCaptchaBanner();
+			}
+			if (!response.ok) {
+				throw response;
+			}
+			return response.json();
+		});
 	}
 
 	/**
@@ -2544,8 +2716,13 @@
 
 				if (isPageLoad) {
 					//delete stale data, show button as on normal page load
-					warning("handleListConversation", `No open conversation found, deleting stale data from web storage.`, true);
+					warning("handleListConversation", `No open conversation found, deleting stale data from web storage.`);
 					resetClientToInitialState();
+
+					// Check if invitations should be initialized after deleting stale date
+					if (hasInvitationsEnabled() && !isChannelMenuDeployment() && !isAppDisplayModeInline()) {
+						initializeInvitations(Date.now());
+					}
 
 					throw new Error(`No open conversation found for JWT in web storage.`);
 				}
@@ -2680,7 +2857,7 @@
 	}
 
 	/**
-	 * Handle creating a new conversation for this end user. Also handles registering device capabilities if the conversation creation is successful.
+	 * Handle creating a new conversation for this end user.
 	 *
 	 * @param prechatFields - Pre-chat data to be sent with the request. Includes visible and/or hidden pre-chat fields
 	 * 							based on pre-chat setup.
@@ -2689,7 +2866,7 @@
 	function handleCreateNewConversation(prechatFields) {
 		//Check if this has already been called
 		if (startingConversation) {
-			error("handleCreateNewConversation", "Attempting to create new conversation multiple times!", null, true);
+			error("handleCreateNewConversation", "Attempting to create new conversation multiple times!", null);
 			return Promise.resolve();
 		}
 
@@ -2708,7 +2885,6 @@
 			.then((conversationResponse) => {
 				//Dispatch ON_EMBEDDED_MESSAGING_CONVERSATION_STARTED event to parent window
 				dispatchEventToHost(ON_EMBEDDED_MESSAGING_CONVERSATION_STARTED_EVENT_NAME, { detail: { conversationId } });
-				handleRegisterDeviceCapabilities();
 				// Track the ES Developer name for the newly created conversation. It would be typically the one from the page snippet.
 				conversationResponse.esDeveloperName = embeddedservice_bootstrap.settings.eswConfigDevName;
 				log("handleCreateNewConversation", `Initialized the esDeveloperName associated with current conversation to: ${embeddedservice_bootstrap.settings.eswConfigDevName}`);
@@ -2727,12 +2903,19 @@
 	function createNewConversation(routingAttributes) {
 		const endpoint = embeddedservice_bootstrap.settings.scrt2URL.concat(CONVERSATION_PATH);
 		const language = embeddedservice_bootstrap.settings.language;
+		traceHeaders["x-b3-traceId"] = generateTraceId();
+		traceHeaders["x-b3-spanId"] = generateSpanId();
 
 		return sendRequest(
 			endpoint,
 			"POST",
 			"cors",
-			null,
+			{
+				"Content-Type": "application/json",
+				...(messagingJwt && { "Authorization": "Bearer " + messagingJwt }),
+				"x-b3-traceId": traceHeaders["x-b3-traceId"],
+				"x-b3-spanId": traceHeaders["x-b3-spanId"]
+			},
 			{
 				...(routingAttributes && { routingAttributes }),
 				conversationId,
@@ -2785,7 +2968,7 @@
 		getTranscript()
 			.then((response) => {
 				saveFile(EMBEDDED_MESSAGING_TRANSCRIPT_FILENAME, response);
-				sendPostMessageToAppIframe(EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_SUCCESS_EVENT_NAME);
+				sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_SUCCESS_EVENT_NAME);
 				// Dispatch ON_EMBEDDED_MESSAGING_TRANSCRIPT_DOWNLOAD_SUCCESSFUL event to parent window
 				dispatchEventToHost(ON_EMBEDDED_MESSAGING_TRANSCRIPT_DOWNLOAD_SUCCESSFUL_EVENT_NAME, { detail: { conversationId } });
 			})
@@ -2793,10 +2976,10 @@
 				if (errResponse) {
 					const errorCode = errResponse.status;
 					const errorMessage = errResponse.message || undefined;
-					sendPostMessageToAppIframe(EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_ERROR_EVENT_NAME, { detail: { errorCode, errorMessage } });
+					sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_ERROR_EVENT_NAME, { detail: { errorCode, errorMessage } });
 					error("handleRequestTranscript", `Transcript request failed with status code: ${errorCode} & message: ${errorMessage}`, errorCode);
 				} else {
-					sendPostMessageToAppIframe(EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_ERROR_EVENT_NAME);
+					sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_REQUEST_TRANSCRIPT_ERROR_EVENT_NAME);
 				}
 				// Dispatch ON_EMBEDDED_MESSAGING_TRANSCRIPT_DOWNLOAD_FAILED event to parent window
 				dispatchEventToHost(ON_EMBEDDED_MESSAGING_TRANSCRIPT_REQUEST_FAILED_EVENT_NAME, { detail: { conversationId } });
@@ -2904,7 +3087,7 @@
 			if (err.errorCode && err.errorCode === ERR_MESSAGE_ORG_UNDER_MAINTENANCE || err.errorCode === ERR_MESSAGE_ORG_NOT_SUPPORTED) {
 				error("handleSendFetchRequestError", `Received a ${err.status} in ${caller}: ${err && err.message ? err.message : JSON.stringify(Object.assign({}, err, {status: err.status, statusText: err.statusText, type: err.type}))}`, err && err.status);
 				if (hasEmbeddedMessagingInitSuccessEventFired) {
-					sendPostMessageToAppIframe(EMBEDDED_MESSAGING_CONVO_ERROR_DATA_RECEIVED_EVENT_NAME, errorData);
+					sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_CONVO_ERROR_DATA_RECEIVED_EVENT_NAME, errorData);
 				} else {
 					initializeChatUnavailableState(errorData);
 				}
@@ -3099,22 +3282,6 @@
 	}
 
 	/**
-	 * Returns the custom header color branding token value for button background color.
-	 * @return {String}
-	 */
-	function getButtonColorFromBrandingConfig() {
-		return getTokenValueFromBrandingConfig("headerColor");
-	}
-
-	/**
-	 * Returns the custom secondary color branding token value for focus borders.
-	 * @return {String}
-	 */
-	function getButtonFocusBorderColorFromBrandingConfig() {
-		return getTokenValueFromBrandingConfig("secondaryColor");
-	}
-
-	/**
 	 * Returns the font branding token value for minimized notification area.
 	 * @return {String}
 	 */
@@ -3155,38 +3322,46 @@
 		let button = getEmbeddedMessagingConversationButton();
 		let iconContainer = document.getElementById(EMBEDDED_MESSAGING_ICON_CONTAINER);
 		let chatIcon = document.getElementById(EMBEDDED_MESSAGING_ICON_CHAT);
-		let loadingSpinner = document.createElement("div");
+		let progressIndicator = document.createElement("div");
 		let assistiveTextElement = document.createElement("span");
-		let circle;
-		let i = 1;
 
 		if(button) {
 			// Hide the default chat icon on the button.
 			chatIcon.style.display = "none";
 
-			// [Animations] Build loading spinner.
-			loadingSpinner.setAttribute("class", EMBEDDED_MESSAGING_LOADING_SPINNER);
-			loadingSpinner.setAttribute("id", EMBEDDED_MESSAGING_LOADING_SPINNER);
-			for(; i < 13; i++) {
-				circle = document.createElement("div");
-				circle.setAttribute("class", EMBEDDED_MESSAGING_LOADING_CIRCLE + i + " " + EMBEDDED_MESSAGING_LOADING_CIRCLE);
-				loadingSpinner.appendChild(circle);
-			}
+			// [Animations] Build loading progress indicator.
+			progressIndicator.setAttribute("class", EMBEDDED_MESSAGING_ICON_PROGRESS_INDICATOR);
+			progressIndicator.setAttribute("id", EMBEDDED_MESSAGING_ICON_PROGRESS_INDICATOR);
 
-			loadingSpinner.classList.add(EMBEDDED_MESSAGING_ICON_LOADING);
+			let outerArc = renderSVG(DEFAULT_ICONS.OUTER_ARC);
+			outerArc.setAttribute("class", EMBEDDED_MESSAGING_ICON_OUTER_ARC);
+
+			let innerArc = renderSVG(DEFAULT_ICONS.INNER_ARC);
+			innerArc.setAttribute("class", EMBEDDED_MESSAGING_ICON_INNER_ARC);
+
+			progressIndicator.appendChild(outerArc);
+			progressIndicator.appendChild(innerArc);
 
 			// Set loading state for the button.
 			button.classList.add(CONVERSATION_BUTTON_LOADING_CLASS);
 			// Load the animations for button.
-			iconContainer.insertBefore(loadingSpinner, chatIcon);
+			iconContainer.insertBefore(progressIndicator, chatIcon);
 			button.disabled = true;
 
 			// [A11Y] Screen reader announce loading status
 			assistiveTextElement.className = SLDS_ASSISTIVE_TEXT;
 			assistiveTextElement.setAttribute("role", "alert");
 			assistiveTextElement.innerHTML = getLabel("EmbeddedMessagingPrechat", "PrechatSubmitButtonLoading") || CHAT_BUTTON_LOADING_ASSISTIVE_TEXT;
-			loadingSpinner.appendChild(assistiveTextElement);
+			progressIndicator.appendChild(assistiveTextElement);
 		}
+	}
+
+	/**
+	 * Returns the background color for chat button on hover.
+	 * @return {String}
+	 */
+	function getButtonHoverColor() {
+		return ColorContrastAccessibility.getHoverBackgroundColor(getTokenValueFromBrandingConfig("chatButton"));
 	}
 
 	/**
@@ -3224,103 +3399,38 @@
 	}
 
 	/**
+	 * Determines whether the user is on Safari browser
+	 * @returns {boolean} True if the user is on Safari browser.
+	 */
+	function isUserSafariBrowser() {
+		return getUserEnvironmentDetails().browser.name === "Safari";
+	}
+
+	/**
 	 * Determine whether to show chat button in initial state based on business hours and static setting.
 	 * If displayMode is set to inline, then button is hidden.
 	 * @returns {boolean} True if chat button should be hidden on page load and false otherwise.
 	 */
 	function shouldShowChatButtonInInitialState() {
-		return isWithinBusinessHours() && !embeddedservice_bootstrap.settings.hideChatButtonOnLoad;
-	}
-
-	/**
-	 * Determines whether we are currently within business hours
-	 * @returns {boolean} True if within business hours, or business hours is not configured
-	 */
-	function isWithinBusinessHours() {
-		// Interval is empty, then it is ALWAYS in business hours.
-		if (!businessHoursInterval) {
-			return true;
-		}
-
-		const startTime = Number(businessHoursInterval.startTime);
-		const endTime = Number(businessHoursInterval.endTime);
-		const currentTime = Date.now();
-
-		// Current time is within this interval
-		if (currentTime >= startTime && currentTime < endTime) {
-			return true;
-		}
-
-		// The current time is either before this interval or after.
-		return false;
-	}
-
-	/**
-	 * Set a business hours timer that invoke a callback when crosses business hours interval.
-	 */
-	function setupBusinessHoursTimer() {
-		let targetTime;
-
-		if (!businessHoursInterval) {
-			return;
-		}
-
-		const isCurrentlyWithinBH = isWithinBusinessHours();
-
-		// Determine which interval to use based on business hours
-		// If current time is not within BH, then it is before the first interval
-		// Otherwise, it is within a BH interval.
-		// If initally outside of business hours fire an event to the host to handle outside of business hours on page load
-		if (!isCurrentlyWithinBH) {
-			targetTime = Number(businessHoursInterval.startTime);
-			dispatchEventToHost(ON_EMBEDDED_MESSAGING_BUSINESS_HOURS_ENDED_EVENT_NAME);
-		} else {
-			targetTime = Number(businessHoursInterval.endTime);
-		}
-
-		if (!isNaN(targetTime)) {
-			// Clear previous timer, if exists
-			if (businessHoursTimer) {
-				clearTimeout(businessHoursTimer);
-			}
-
-			businessHoursTimer = setTimeout(() => {
-				// Clean up this executed timer
-				clearTimeout(businessHoursTimer);
-				businessHoursTimer = undefined;
-
-				businessHoursTimerCallback(isCurrentlyWithinBH);
-
-				// Fires an event to the host to indicate business hours interval change.
-				if (isCurrentlyWithinBH) {
-					dispatchEventToHost(ON_EMBEDDED_MESSAGING_BUSINESS_HOURS_ENDED_EVENT_NAME);
-				} else {
-					dispatchEventToHost(ON_EMBEDDED_MESSAGING_BUSINESS_HOURS_STARTED_EVENT_NAME);
-				}
-
-			}, (targetTime - Date.now()));
-		}
+		return businessHoursUtils.isWithinBusinessHours() && !embeddedservice_bootstrap.settings.hideChatButtonOnLoad;
 	}
 
 	/**
 	 * Callback function for business hours timer, to change the visibility of the chat button.
 	 * @param {boolean} wasWithinBusinessHours - If the app was within business hours when the timer was set.
 	 */
-	function businessHoursTimerCallback(wasWithinBusinessHours) {
+	async function businessHoursTimerCallback(wasWithinBusinessHours) {
 		// Clear the agent availability timer before handling business hours change callback
 		clearAgentAvailabilityTimer();
 		if (wasWithinBusinessHours) {
-			// Clean up stale interval
-			businessHoursInterval = undefined;
-
 			embeddedservice_bootstrap.utilAPI.hideChatButton();
+			dispatchEventToHost(BusinessHoursUtils.constants.ON_EMBEDDED_MESSAGING_BUSINESS_HOURS_ENDED_EVENT_NAME);
 
 			// Get more intervals before we set another timer since we were within BH.
-			getBusinessHoursInterval()
-				.then(setupBusinessHoursTimer())
-				.catch(err => {
-					return handleBusinessHoursError(err);
-				});
+			await businessHoursUtils.loadBusinessHours().catch(err => {
+				error("businessHoursTimerCallback", `Failed to retrieve Business Hours data. Retrying the request.`, err);
+				return businessHoursUtils.loadBusinessHours();
+			});
 		} else {
 			if (!isChannelMenuDeployment()) {
 				const agentAvailabilityPromise = isAgentAvailabilityCheckEnabled()
@@ -3328,14 +3438,16 @@
 					: Promise.resolve(true);
 
 				agentAvailabilityPromise.then(() => {
-					if (isWithinBusinessHours()) {
+					if (businessHoursUtils.isWithinBusinessHours()) {
 						embeddedservice_bootstrap.utilAPI.showChatButton();
 					}
 				});
 			}
 
+			dispatchEventToHost(BusinessHoursUtils.constants.ON_EMBEDDED_MESSAGING_BUSINESS_HOURS_STARTED_EVENT_NAME);
+
 			// Attempt to set subsequent business hours timer.
-			setupBusinessHoursTimer();
+			businessHoursUtils.setupBusinessHoursTimer();
 		}
 	}
 
@@ -3456,12 +3568,22 @@
 	};
 
 	/**
-	 * Returns true if inviations are enabled.
+	 * Returns true if invitations are enabled.
 	 *
 	 * @returns {boolean}
 	 */
 	function hasInvitationsEnabled() {
-		return embeddedservice_bootstrap.settings.embeddedServiceConfig.invitations;
+		return embeddedservice_bootstrap.settings.embeddedServiceConfig.invitation;
+	}
+
+	/**
+	 * Returns true if custom invitations are enabled.
+	 *
+	 * @returns {boolean}
+	 */
+	function hasCustomInvitationsEnabled() {
+		const invitationSetting = embeddedservice_bootstrap.settings.embeddedServiceConfig.invitation || {};
+		return Boolean(invitationSetting.isChatInvitationCustomizable);
 	}
 
 	/**
@@ -3479,6 +3601,12 @@
 	 * 
 	 */
 	function initializeInvitations(pageStartTime) {
+	    // Check if invitation should be shown based on previous actions and settings
+		if (!shouldShowInvitationBasedOnPreviousActions()) {
+			log("initializeInvitations", "Skipping invitation initialization due to previous actions and settings");
+			return;
+		}
+
 		// Create and load invitation script
 		if (!getInvitationScript()) {
 			const script = document.createElement("script");
@@ -3515,10 +3643,119 @@
 	 * Handle showing the invitation when rule conditions evaluate to true.
 	 */
 	function handleInvitationConditionsMet() {
-		// Handle invitation conditions accept/reject logic
-		const minimizedNotification = createMinimizedNotification("Hello! 👋🏼 Chat with a Fitness Expert about your summer wellness goals!");
+		// Check if invitation should be shown again based on previous actions and settings
+		if (!shouldShowInvitationBasedOnPreviousActions()) {
+			log("handleInvitationConditionsMet", "Invitation conditions met but should not show invitation based on settings/previous actions");
 
-		embeddedservice_bootstrap.settings.targetElement.appendChild(minimizedNotification);
+			// Reset invitation rules even if we don't show the invitation
+			embeddedservice_bootstrap.invitations.reset();
+			return;
+		}
+
+		// Check if using custom invitation
+		if (hasCustomInvitationsEnabled()) {
+			// Only dispatch the event, don't show the invitation
+			dispatchEventToHost(ON_EMBEDDED_MESSAGING_INVITATION_SHOWN_EVENT_NAME);
+			log("handleInvitationConditionsMet", "Default invitation skipped to allow custom invitation");
+			
+			// Reset invitation rules even if we don't show the invitation
+			embeddedservice_bootstrap.invitations.reset();
+			return;
+		}
+
+		const button = getEmbeddedMessagingConversationButton();
+		let minimizedNotification;
+
+		if (!button) {
+			return;
+		}
+
+		if (button.style.display === "none") {
+			// Do not show invitation if outside of business hours or agent availability is enabled and there is no available agents 
+			if (!isWithinBusinessHours() || isAgentAvailabilityCheckEnabled()) {
+				return;
+			} 
+			embeddedservice_bootstrap.utilAPI.showChatButton();	
+		} else {
+			// Handle invitation conditions accept/reject logic
+			minimizedNotification = createMinimizedNotification(getLabel("EmbeddedMessagingInvitationWindow", "InvitationBodyText") || MINIMIZED_NOTIFICATION_AREA_INVITATIONS_DEFAULT_TEXT, true);
+
+			button.parentNode.insertBefore(minimizedNotification, button);
+
+			dispatchEventToHost(ON_EMBEDDED_MESSAGING_INVITATION_SHOWN_EVENT_NAME);
+
+			log("handleInvitationConditionsMet", "Invitation shown");
+
+			// Reset invitation rules
+			embeddedservice_bootstrap.invitations.reset();
+		}
+	}
+
+	/**
+	 * Check if invitation should be shown after accepting based on settings
+	 * @returns {boolean} Whether invitation should be shown after accepting
+	 */
+	function shouldShowInvitationAfterAccepting() {
+		const invitationSetting = embeddedservice_bootstrap.settings.embeddedServiceConfig.invitation;
+		return Boolean(invitationSetting.isSendInvtAllowedAfterAccept);
+	}
+
+	/**
+	 * Check if invitation should be shown after rejecting based on settings
+	 * @returns {boolean} Whether invitation should be shown after rejecting
+	 */
+	function shouldShowInvitationAfterRejecting() {
+		const invitationSetting = embeddedservice_bootstrap.settings.embeddedServiceConfig.invitation;
+		return Boolean(invitationSetting.isSendInvtAllowedAfterReject);
+	}
+
+	/**
+	 * Check if invitation has been previously accepted
+	 * @returns {boolean} Whether invitation has been accepted before
+	 */
+	function hasInvitationBeenAccepted() {
+		return Boolean(getItemInWebStorageByKey(STORAGE_KEYS.INVITATION_ACCEPTED, true));
+	}
+
+	/**
+	 * Check if invitation has been previously rejected
+	 * @returns {boolean} Whether invitation has been rejected before
+	 */
+	function hasInvitationBeenRejected() {
+		return Boolean(getItemInWebStorageByKey(STORAGE_KEYS.INVITATION_REJECTED, true));
+	}
+
+	/**
+	 * Check if invitation should be shown based on previous actions and settings
+	 * @returns {boolean} Whether invitation should be shown
+	 */
+	function shouldShowInvitationBasedOnPreviousActions() {
+		return hasInvitationsEnabled() &&
+			(shouldShowInvitationAfterAccepting() || !hasInvitationBeenAccepted()) &&
+       		(shouldShowInvitationAfterRejecting() || !hasInvitationBeenRejected());
+	}
+
+	/**
+	 * Handle invitation accept/reject event dispatch and storage
+	 * @param {boolean} isAccept - Whether this is an accept or reject
+	 */
+	function handleInvitationNotificationAction(isAccept) {
+		const config = isAccept ? {
+			storageKey: STORAGE_KEYS.INVITATION_ACCEPTED,
+			eventName: ON_EMBEDDED_MESSAGING_INVITATION_ACCEPTED_EVENT_NAME,
+			logMessage: "Invitation accepted"
+		} : {
+			storageKey: STORAGE_KEYS.INVITATION_REJECTED,
+			eventName: ON_EMBEDDED_MESSAGING_INVITATION_REJECTED_EVENT_NAME,
+			logMessage: "Invitation rejected"
+		};
+
+		setItemInWebStorage(config.storageKey, Date.now(), true);
+		removeItemInWebStorage(STORAGE_KEYS.PAGE_COUNT);
+		removeItemInWebStorage(STORAGE_KEYS.SITE_TIME);
+
+		dispatchEventToHost(config.eventName);
+		log("handleInvitationNotificationAction", config.logMessage);
 	}
 
 	/**
@@ -3528,13 +3765,15 @@
 	 */
 	function toggleInertOnSiblingElements(inertEnabled) {
 		const siblingElements = embeddedservice_bootstrap.settings.targetElement.children;
-		let element;
 
-		for (const index in siblingElements) {
-			element = siblingElements[index];
+		for (const element of siblingElements) {
 			// Do not apply inert to our iframe elements
 			if (element !== getEmbeddedMessagingTopContainer() && element !== embeddedservice_bootstrap.filePreviewFrame) {
-				element.inert = inertEnabled;
+				try {
+					element.inert = inertEnabled;
+				} catch (err) {
+					error("toggleInertOnSiblingElements", err.message);
+				}
 			}
 		}
 	}
@@ -3557,8 +3796,7 @@
 		const liveRegion = document.createElement("div");
 
 		liveRegion.id = "embeddedMessagingLiveRegion";
-		liveRegion.setAttribute("aria-live", "assertive");
-		liveRegion.setAttribute("aria-atomic", "true");
+		liveRegion.setAttribute("aria-live", "polite");
 		liveRegion.classList.add("embeddedMessagingLiveRegion");
 
 		getEmbeddedMessagingTopContainer().appendChild(liveRegion);
@@ -3658,7 +3896,7 @@
 	 * Send a request to the site context iframe to prefetch resources.
 	 */
 	function prefetchResources() {
-		sendPostMessageToSiteContextIframe(EMBEDDED_MESSAGING_PREFETCH_EVENT_NAME);
+		sendPostMessageToSiteContextIframe(EVENT.EMBEDDED_MESSAGING_PREFETCH_EVENT_NAME);
 	}
 
 	/**
@@ -3734,14 +3972,14 @@
 					// Clear agent availability timer
 					clearAgentAvailabilityTimer();
 
-					const agentAvailabilityDataPromise = isAgentAvailabilityCheckEnabled()
-						? getAgentAvailabilityData()
+					const agentAvailabilityDataPromise = isAgentAvailabilityCheckEnabled() && !isChannelMenuDeployment() 
+						? getAgentAvailabilityData().then(result => result.agentAvailable)
 						: Promise.resolve(true);
+
 					agentAvailabilityDataPromise.then((isAgentAvailable) => {
 						log("handleClick", `Received getAgentAvailability API response after button click: ${isAgentAvailable}`);
 						if (isAgentAvailable === false) {
 							handleAgentUnavailableOnButtonClick();
-							reject("Agent Unavailable");
 							return;
 						}
 
@@ -3763,13 +4001,17 @@
 								reject(err);
 							});
 						}
+
+						if (hasInvitationsEnabled()) {
+							embeddedservice_bootstrap.invitations.reset();
+						}
 					}).catch((err) => {
 						error("handleClick", `Failed to retrieve Agent Availability data. Returning with the default value as agentAvailable : false ${err}`);
 						reject(err);
 					});
 				} else if((button && button.classList.contains(CONVERSATION_BUTTON_LOADED_CLASS)) && (frame && frame.classList && frame.classList.contains(MODAL_ISMAXIMIZED_CLASS))) {
 					// Minimize the chat if it is already maximized.
-					sendPostMessageToAppIframe(APP_MINIMIZE_EVENT_NAME);
+					sendPostMessageToAppIframe(EVENT.APP_MINIMIZE_EVENT_NAME);
 				} else {
 					error("handleClick", `Something went wrong handling button click event.`);
 				}
@@ -3830,7 +4072,7 @@
 				if (frame && frame.classList && frame.classList.contains(MODAL_ISMAXIMIZED_CLASS)) {
 					// SHIFT + TAB: Trap focus to last element in client.
 					evt.preventDefault();
-					sendPostMessageToAppIframe(EMBEDDED_MESSAGING_FOCUS_ON_LAST_FOCUSABLE_ELEMENT_EVENT_NAME);
+					sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_FOCUS_ON_LAST_FOCUSABLE_ELEMENT_EVENT_NAME);
 				}
 			}
 		}
@@ -3838,15 +4080,22 @@
 
 	/**
 	 * Handles notification area dismiss button click.
+	 * @param isUserDismiss - Whether user directly dismisses or dismisses by handleClick()
 	 */
-	function handleNotificationDismissButtonClick() {
+	function handleNotificationDismissButtonClick(isUserDismiss = false) {
 		const notificationArea = document.getElementById(MINIMIZED_NOTIFICATION_AREA_CLASS);
 		const button = getEmbeddedMessagingConversationButton();
 
 		// Removes the notification area.
 		if (notificationArea) {
+			// For invitations, store dismiss as reject in local storage
+			if (isUserDismiss && notificationArea.getAttribute("is-invitation") === "true") {
+				handleInvitationNotificationAction(false);
+			}
+			
 			notificationArea.parentNode.removeChild(notificationArea);
 		}
+
 		// Move focus to minimized button in minimized state.
 		if (button) {
 			button.focus();
@@ -3861,7 +4110,7 @@
 		if (evt.key === KEY_CODES.ENTER || evt.key === KEY_CODES.SPACE) {
 			// ENTER or SPACE dismisses the notification
 			evt.preventDefault();
-			handleNotificationDismissButtonClick();
+			handleNotificationDismissButtonClick(true);
 		}
 	}
 
@@ -3941,7 +4190,7 @@
 		let button = getEmbeddedMessagingConversationButton();
 		let iconContainer = document.getElementById(EMBEDDED_MESSAGING_ICON_CONTAINER);
 		let chatIcon = document.getElementById(EMBEDDED_MESSAGING_ICON_CHAT);
-		let loadingSpinner = document.getElementById(EMBEDDED_MESSAGING_LOADING_SPINNER);
+		let progressIndicator = document.getElementById(EMBEDDED_MESSAGING_ICON_PROGRESS_INDICATOR);
 		let iframe = embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame();
 
 		if(!iframe) {
@@ -3952,8 +4201,8 @@
 			warning("handleAfterAppLoad", "Embedded Messaging static button not available for post-app-load updates.");
 		} else {
 			// Reset the Conversation button once the aura application is loaded in the iframe. Ifame/Chat window is rendered on top of FAB.
-			if (iconContainer && loadingSpinner) {
-				iconContainer.removeChild(loadingSpinner);
+			if (iconContainer && progressIndicator) {
+				iconContainer.removeChild(progressIndicator);
 			}
 
 			if (chatIcon) {
@@ -4014,8 +4263,8 @@
 			restoreViewportMetaTag();
 		}
 
-		// [Mobile Web] Remove inert state from background elements.
-		if (isMobile()) {
+		// [A11Y] Enable background elements on mobile web or if setting is enabled for desktop
+		if (isMobile() || embeddedservice_bootstrap.settings.disableBackgroundWhenChatIsMaximized) {
 			toggleInertOnSiblingElements(false);
 		}
 
@@ -4056,7 +4305,7 @@
 		// Resolve clearSession() promise, for both Auth and UnAuth (W-12338093) mode.
 		// The reason we do this here is because in some cases we need to wait for the iframe
 		// document to process clearSession asynchronousl; see handleClearUserSession
-		// and handler for APP_RESET_INITIAL_STATE_EVENT_NAME
+		// and handler for EVENT.APP_RESET_INITIAL_STATE_EVENT_NAME
 		// This should always be the last thing we do in this function.
 		resolveClearSessionPromise();
 	}
@@ -4217,10 +4466,10 @@
 		// [A11Y] Assistive text
 		buttonElement.setAttribute("title", getLabel("EmbeddedMessagingMinimizedState", "DefaultMinimizedText") || CONVERSATION_BUTTON_DEFAULT_ASSISTIVE_TEXT);
 
-		// Update the color of FAB to match the color of Chat Header, i.e. --headerColor branding token from setup.
-		buttonElement.style.setProperty("--eswHeaderColor", getButtonColorFromBrandingConfig());
-		// Update the focus border color to match the Secondary Color, i.e. --secondaryColor branding token from setup.
-		buttonElement.style.setProperty("--eswSecondaryColor", getButtonFocusBorderColorFromBrandingConfig());
+		// Update the color of FAB to match the color of Chat Button, i.e. --chatButton branding token from setup.
+		buttonElement.style.setProperty("--eswButtonColor", getTokenValueFromBrandingConfig("chatButton"));
+		// Update the hover color to be a shade of the FAB color.
+		buttonElement.style.setProperty("--eswButtonHoverColor", getButtonHoverColor());
 
 		// Adjust button height if browser has bottom tab bar.
 		if(embeddedservice_bootstrap.settings.hasBottomTabBar) {
@@ -4250,6 +4499,25 @@
 	}
 
 	/**
+	 * Converts line breaks (<br>) to proper HTML.
+	 *
+	 * @param {string} text - The input markdown text
+	 * @returns {string} - The parsed HTML string
+	 */
+	function parseInvitationMarkdown(text) {
+		if (!text) {
+			return "";
+		}
+
+		try {
+			return text.replace(/<br>/gi, '<br/>');
+		} catch (e) {
+			error("parseInvitationMarkdown", `Failed to parse invitation markdown.`)
+			return "";
+		}
+	}
+
+	/**
 	 * Generates markup for the background overlay (for modal view displayed on mobile only).
 	 * @return {HTMLElement}
 	 */
@@ -4264,9 +4532,10 @@
 	/**
 	 * Generates markup for the minimized notification area element.
 	 * @param {string} notificationText - The notification text to display
+	 * @param {boolean} isInvitation - Whether the notification is invitation
 	 * @returns {HTMLElement}
 	 */
-	function createMinimizedNotification(notificationText) {
+	function createMinimizedNotification(notificationText, isInvitation = false) {
 		const notificationElement = document.createElement("div");
 		const notificationTextWrapperElement = document.createElement("div");
 		const notificationTextElement = document.createElement("span");
@@ -4276,13 +4545,45 @@
 		notificationElement.id = MINIMIZED_NOTIFICATION_AREA_CLASS;
 		notificationElement.className = MINIMIZED_NOTIFICATION_AREA_CLASS;
 
+		// Update the color of notification to match the color of Chat Button, i.e. --chatButton branding token from setup.
+		notificationElement.style.setProperty("--eswNotificationBackgroundColor", getTokenValueFromBrandingConfig("chatButton"));
+
+		// Set HTML direction based on language
+		if (embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection && typeof embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection === "string") {
+			notificationElement.setAttribute("dir", embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection.toLowerCase());
+		}
+
+		if (isInvitation) {
+			notificationElement.setAttribute("is-invitation", "true");
+			notificationElement.style.cursor = "pointer";
+			
+			// Handle invitation acceptance when user clicks the notification area (excluding dismiss button)
+			notificationElement.addEventListener("click", function(event) {
+				if (event && event.target && !event.target.closest("." + MINIMIZED_NOTIFICATION_DISMISS_BTN_CLASS)) {
+					handleInvitationNotificationAction(true);
+					
+					handleClick();
+				}
+			});
+		}
+
 		notificationTextWrapperElement.className = MINIMIZED_NOTIFICATION_AREA_TEXT_WRAPPER_CLASS;
+		// Set HTML direction based on language
+		if (embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection && typeof embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection === "string") {
+			notificationTextWrapperElement.setAttribute("dir", embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection.toLowerCase());
+		}
 
 		notificationTextElement.className = MINIMIZED_NOTIFICATION_AREA_TEXT_CLASS;
+		// Set HTML direction based on language
+		if (embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection && typeof embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection === "string") {
+			notificationTextElement.setAttribute("dir", embeddedservice_bootstrap.settings.embeddedServiceConfig.htmlDirection.toLowerCase());
+		}
+
 		notificationTextElement.role = "status";
 		notificationTextElement.title = notificationText;
-		notificationTextElement.innerHTML = notificationText;
+		notificationTextElement.innerHTML = parseInvitationMarkdown(notificationText);
 		notificationTextElement.style.setProperty("font-family", getFontFamilyFromBrandingConfig());
+		notificationTextElement.style.setProperty("--eswNotificationTextColor", getTokenValueFromBrandingConfig("invitationText"));
 
 		notificationAssistiveTextElement.className = SLDS_ASSISTIVE_TEXT;
 		notificationAssistiveTextElement.innerHTML = getLabel("EmbeddedMessagingMinimizedState", "MinimizedNotificationAssistiveText") || MINIMIZED_NOTIFICATION_AREA_DEFAULT_ASSISTIVE_TEXT;
@@ -4305,9 +4606,15 @@
 		const buttonAssistiveTextElement = document.createElement("span");
 
 		buttonElement.className = MINIMIZED_NOTIFICATION_DISMISS_BTN_CLASS;
-		buttonElement.addEventListener("click", handleNotificationDismissButtonClick);
+		buttonElement.addEventListener("click", (event) => {
+			event.stopPropagation();
+			handleNotificationDismissButtonClick(true);
+		});
 		buttonElement.addEventListener("keydown", handleDismissButtonKeyDown);
 		buttonElement.setAttribute("aria-describedby", MINIMIZED_NOTIFICATION_DISMISS_BTN_ID);
+
+		buttonElement.style.setProperty("--eswNotificationButtonColor", getTokenValueFromBrandingConfig("invitationDismissalButton"));
+		buttonElement.style.setProperty("--eswNotificationButtonHoverColor", getButtonHoverColor());
 
 		buttonIconElement.className = MINIMIZED_NOTIFICATION_DISMISS_BTN_TEXT_CLASS;
 		
@@ -4325,23 +4632,6 @@
 		return buttonElement;
 	}
 
-	/**
-	 * Processes embedded messaging logs generated from bootstrap.js. When a log is generated,
-	 * 1. it is directly sent to the container via postMessage if the container is ready i.e. on 'ESW_APP_READY_EVENT' event or kept in-memory otherwise.
-	 * 2. reset in-memory storage if/when log(s) are sent to the container
-	 *
-	 * @param {object} currentStateLogObj - a standard/current state log object generated from a log statement in bootstrap, for a change of event
-	 * @param {object} errorLogObj - an error log object generated from an error statement in bootstrap, for an encountered error
-	 */
-	function processEmbeddedMessagingLogs(currentStateLogObj, errorLogObj) {
-		currentStateLogObj && embeddedMessagingLogs.currentStateLogs.push(currentStateLogObj);
-		errorLogObj && embeddedMessagingLogs.errorLogs.push(errorLogObj);
-
-		lwrIframeReadyPromise.then(() => {
-			sendPostMessageToAppIframe(EMBEDDED_MESSAGING_PUSH_PARENT_FRAME_LOGS, {pendingLogs: embeddedMessagingLogs});
-			cleanUpEmbeddedMessagingLogs();
-		});
-	}
 
 	/**
 	 * Logs web storage items (top level keys) during initialization.
@@ -4360,12 +4650,6 @@
 		}
 	}
 
-	/**
-	 * Clean up logs generated from bootsrap.js in-memory.
-	 */
-	function cleanUpEmbeddedMessagingLogs() {
-		embeddedMessagingLogs = {currentStateLogs: [], errorLogs: []};
-	}
 
 	/*************************************************************
 	*		Embedded Messaging User Verification Public API      *
@@ -4392,7 +4676,9 @@
 	 */
 	EmbeddedMessagingUserVerification.prototype.setIdentityToken = function setIdentityToken(identityTokenData) {
 		let identityTokenType;
+		let normalizedIdentityTokenType;
 		let token;
+		const authMode = getAuthMode();
 
 		// Cannot be invoked before `afterInit` event has been emitted.
 		if (!hasEmbeddedMessagingReadyEventFired) {
@@ -4401,7 +4687,7 @@
 		}
 
 		// Check whether we are in authorization mode.
-		if (getAuthMode() !== AUTH_MODE.AUTH) {
+		if (authMode !== AUTH_MODE.AUTH && authMode !== AUTH_MODE.EXCHANGE_JWT_AUTH) {
 			error("setIdentityToken", `User Verification isn’t enabled in Messaging Settings.`);
 			return false;
 		}
@@ -4415,10 +4701,10 @@
 		// Set the identityTokenType and token fields.
 		identityTokenType = identityTokenData[IDENTITY_TOKEN_PARAM.ID_TOKEN_TYPE];
 		token = identityTokenData[IDENTITY_TOKEN_PARAM.ID_TOKEN];
+		normalizedIdentityTokenType = typeof identityTokenType === "string" ? identityTokenType.trim() : "";
 
-		// Only JWT-based identity tokens are supported in 242.
-		if (typeof identityTokenType !== "string" || identityTokenType.trim().toUpperCase() !== ID_TOKEN_TYPE.JWT) {
-			error("setIdentityToken", `Unsupported identity token. Only JWT-based identity tokens are supported.`);
+		if (normalizedIdentityTokenType.toUpperCase() !== ID_TOKEN_TYPE.JWT.toUpperCase() && normalizedIdentityTokenType.toUpperCase() !== ID_TOKEN_TYPE.EXCHANGE_JWT.toUpperCase()) {
+			error("setIdentityToken", `Unsupported identity token type. Expected one of ${Object.values(ID_TOKEN_TYPE)}.`);
 			return false;
 		}
 
@@ -4427,6 +4713,14 @@
 			error("setIdentityToken", `Invalid identity token passed into the setIdentityToken method.`);
 			return false;
 		}
+
+        const isExchangeTokenType = normalizedIdentityTokenType.toUpperCase() === ID_TOKEN_TYPE.EXCHANGE_JWT.toUpperCase();
+        const isExchangeAuthMode = authMode === AUTH_MODE.EXCHANGE_JWT_AUTH;
+        if (isExchangeTokenType !== isExchangeAuthMode) {
+            error("setIdentityToken", `identityTokenType (${normalizedIdentityTokenType}) and authMode (${authMode}) must either both be exchange (${ID_TOKEN_TYPE.EXCHANGE_JWT}/${AUTH_MODE.EXCHANGE_JWT_AUTH}) or both be non-exchange.`);
+            return false;
+        }
+        identityTokenType = normalizedIdentityTokenType;
 
 		// Store (or replace existing) customer identity token in memory.
 		identityToken = token;
@@ -4440,16 +4734,69 @@
 
 		if (embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame()) {
 			// If iframe is initialized, replace the identity token passed down during initialization.
-			sendPostMessageToAppIframe(EMBEDDED_MESSAGING_SET_IDENTITY_TOKEN_EVENT_NAME, identityToken);
+			sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_SET_IDENTITY_TOKEN_EVENT_NAME, identityToken);
 		} else if (!getEmbeddedMessagingConversationButton()) {
 			embeddedservice_bootstrap.generateMarkup();
-		} else if (getEmbeddedMessagingConversationButton() && document.getElementById(EMBEDDED_MESSAGING_ICON_REFRESH)) {
+		} else if (getEmbeddedMessagingConversationButton() && document.getElementById(EMBEDDED_MESSAGING_ICON_ERROR)) {
 			// Remove existing markup on the page if we're in error state before regenerating the button markup.
 			embeddedservice_bootstrap.removeMarkup();
 			embeddedservice_bootstrap.generateMarkup();
 		}
 
 		return true;
+	}
+
+	/**
+	 * EXTERNAL API - DO NOT CHANGE SHAPE
+	 * User verification API method for fetching auth link key.
+	 *
+	 * @returns {Promise} Promise that resolves with the authLinkKey.
+	 */
+	EmbeddedMessagingUserVerification.prototype.getAuthLinkKey = function getAuthLinkKey() {
+		const authMode = getAuthMode();
+		if (authMode !== AUTH_MODE.EXCHANGE_JWT_AUTH && authMode !== AUTH_MODE.UNAUTH) {
+			throw new Error(`getAuthLinkKey is only supported when authMode is ${AUTH_MODE.EXCHANGE_JWT_AUTH} or ${AUTH_MODE.UNAUTH}. Received: ${authMode}.`);
+		}
+		return fetchAuthLinkKey();
+	}
+
+	/**
+	 * Fetch auth link key (internal implementation for userVerificationAPI.getAuthLinkKey).
+	 *
+	 * @returns {Promise}
+	 */
+	function fetchAuthLinkKey() {
+		const authLinkQueryParams = new URLSearchParams({
+			conversationId
+		}).toString();
+		const apiPath = embeddedservice_bootstrap.settings.scrt2URL.concat(AUTH_LINK_PATH, "?", authLinkQueryParams);
+
+		return sendAuthLinkKeyRequest(apiPath).then(responseBody => {
+			return responseBody.authLinkKey;
+		});
+	}
+
+	/**
+	 * Send auth link key request.
+	 *
+	 * @param {string} apiPath - auth link endpoint.
+	 * @returns {Promise}
+	 */
+	async function sendAuthLinkKeyRequest(apiPath) {
+		const response = await sendRequest(
+			apiPath,
+			"GET",
+			"cors",
+			{
+				Authorization: `Bearer ${messagingJwt}`
+			},
+			null,
+			"sendAuthLinkKeyRequest"
+		);
+		if (!response.ok) {
+			throw response;
+		}
+		return response.json();
 	}
 
 	/**
@@ -4467,6 +4814,7 @@
 	EmbeddedMessagingUserVerification.prototype.clearSession = function clearSession(shouldEndSession) {
 		return new Promise((resolve, reject) => {
 			clearUserSessionPromiseResolve = resolve;
+			clearUserSessionPromiseReject = reject;
 
 			// Cannot be invoked before `afterInit` event has been emitted.
 			if (!hasEmbeddedMessagingReadyEventFired) {
@@ -4494,7 +4842,7 @@
 	function handleClearUserSession(shouldRevokeJwt, isSecondaryTab, shouldEndSession = false) {
 		const iframe = embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame();
 		if (iframe) {
-			sendPostMessageToAppIframe(EMBEDDED_MESSAGING_CLEAR_USER_SESSION_EVENT_NAME, {shouldRevokeJwt, shouldEndSession});
+			sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_CLEAR_USER_SESSION_EVENT_NAME, {shouldRevokeJwt, shouldEndSession});
 		} else {
 			resetClientToInitialState(isSecondaryTab);
 		}
@@ -4590,11 +4938,15 @@
 			.then(() => {
 				log("handleIdentityTokenExpiry", `Valid identity token found. Fetch authenticated JWT.`);
 				// Process pending request(s).
-				if (pendingRequest.apiPath.includes(ACCESS_TOKEN_PATH)) {
+				if (pendingRequest.apiPath.includes(ACCESS_TOKEN_PATH) || pendingRequest.apiPath.includes(EXCHANGE_AUTHENTICATED_ACCESS_TOKEN_PATH)) {
 					// Handle authenticated JWT request separately, because we only need to fetch the JWT in this case.
 					// This request is generated on button click with an expired token.
 					// Set new token before fetching authenticated JWT.
-					pendingRequest.requestBody.customerIdentityToken = identityToken;
+					if (pendingRequest.updateAuthOnTokenRefresh) {
+						pendingRequest.requestHeaders.Authorization = `Bearer ${identityToken}`;
+					} else {
+						pendingRequest.requestBody.customerIdentityToken = identityToken;
+					}
 					handlePendingRequest(pendingRequest);
 				} else {
 					// Handle other requests (i.e, not that ACCESS_TOKEN_PATH request).
@@ -4614,7 +4966,7 @@
 	 * 2. If enabled, dispatch "onEmbeddedMessagingIdentityTokenExpired" event to notify the customer that their token has expired.
 	 */
 	function handleIdentityTokenExpiredEvent() {
-		if (getAuthMode() !== AUTH_MODE.AUTH) {
+		if (getAuthMode() !== AUTH_MODE.AUTH && getAuthMode() !== AUTH_MODE.EXCHANGE_JWT_AUTH) {
 			warning("handleIdentityTokenExpiredEvent", `handleIdentityTokenExpiredEvent method called but User Verification isn’t enabled in Messaging Settings.`);
 			return;
 		}
@@ -4628,7 +4980,7 @@
 		let button;
 		let chatIcon;
 		let iconContainer;
-		let refreshIcon;
+		let errorIcon;
 		let minimizedNotification;
 
 		// Handle client reset and surface error state only in the primary tab.
@@ -4663,10 +5015,10 @@
 			}
 
 			// Create the minimize button markup and insert into the DOM.
-			refreshIcon = renderSVG(DEFAULT_ICONS.REFRESH);
-			refreshIcon.setAttribute("id", EMBEDDED_MESSAGING_ICON_REFRESH);
-			refreshIcon.setAttribute("class", EMBEDDED_MESSAGING_ICON_REFRESH);
-			iconContainer.appendChild(refreshIcon);
+			errorIcon = renderSVG(DEFAULT_ICONS.ERROR);
+			errorIcon.setAttribute("id", EMBEDDED_MESSAGING_ICON_ERROR);
+			errorIcon.setAttribute("class", EMBEDDED_MESSAGING_ICON_ERROR);
+			iconContainer.appendChild(errorIcon);
 
 			minimizedNotification = createMinimizedNotification(getLabel("EmbeddedMessagingMinimizedState", "JWTRetrievalFailureText") || MINIMIZED_NOTIFICATION_AREA_DEFAULT_TEXT);
 
@@ -4696,6 +5048,7 @@
 
 		switch(identityTokenType) {
 			case ID_TOKEN_TYPE.JWT:
+			case ID_TOKEN_TYPE.EXCHANGE_JWT:
 				isValid = validateJwt(token);
 				break;
 			default:
@@ -4797,7 +5150,7 @@
 	 * @returns {Boolean} True if either JWT based user verification or experience site user verification is enabled.
 	 */
 	function isUserVerificationEnabled() {
-		return getAuthMode() === AUTH_MODE.AUTH || getAuthMode() === AUTH_MODE.EXP_SITE_AUTH;
+		return getAuthMode() === AUTH_MODE.AUTH || getAuthMode() === AUTH_MODE.EXP_SITE_AUTH || getAuthMode() === AUTH_MODE.EXCHANGE_JWT_AUTH;
 	}
 
 	/****************************************
@@ -4829,49 +5182,6 @@
 			&& Array.isArray(embeddedservice_bootstrap.settings.embeddedServiceConfig.forms[0].formFields) && embeddedservice_bootstrap.settings.embeddedServiceConfig.forms[0].formFields.length;
 	}
 
-	/**
-	 * Validates a Hidden/Visible Pre-Chat field set by host in setHiddenPrechatFields/setVisiblePrechatFields method.
-	 * @return {boolean} True if fieldName and/or fieldValue are valid and False otherwise.
-	 */
-	function validatePrechatField(caller, fieldName, fieldValue, isEditableByEndUser) {
-		const isHiddenField = caller === 'setHiddenPrechatFields';
-		const prechatFieldsFromConfig = isHiddenField ? getHiddenPrechatFieldsFromConfig() : getVisiblePrechatFieldsFromConfig();
-		// List of field names from configuration response.
-		const prechatFieldNamesFromConfig = prechatFieldsFromConfig.map(({ name }) => name);
-		// Field name object from configuration response for the passed in fieldName.
-		const prechatField = prechatFieldsFromConfig.find(fields => fields.name === fieldName);
-
-		if (!prechatFieldNamesFromConfig.includes(fieldName)) {
-			error("validatePrechatField", `${caller} called with an invalid field name ${fieldName}.`);
-			return false;
-		}
-
-		if (typeof fieldValue ==='string' && (fieldValue.toLowerCase().includes("javascript:") || fieldValue.toLowerCase().includes("<script>"))) {
-			error("validatePrechatField", `JavaScript isn't allowed in the value for the ${fieldName} field when calling ${caller}.`);
-			return false;
-		}
-
-		if (fieldValue && String(fieldValue).length > prechatField['maxLength']) {
-			error("validatePrechatField", `Value for the ${fieldName} field in ${caller} exceeds the maximum length restriction of ${prechatField['maxLength']} characters.`);
-			return false;
-		}
-
-		// These checks are only applicable to hidden fields.
-		if (isHiddenField) {
-			if (typeof fieldValue !== "string") {
-				error("validatePrechatField", `You must specify a string for the ${fieldName} field in ${caller} instead of a ${typeof fieldValue} value.`);
-				return false;
-			}
-		}
-
-		// This check is only applicable to visible fields.
-		if (isEditableByEndUser && typeof isEditableByEndUser !== 'boolean') {
-			error("validatePrechatField", `setVisiblePrechatFields was called with isEditableByEndUser set to a value that’s not boolean. Enter a boolean value.`);
-			return false;
-		}
-
-		return true;
-	}
 
 	/**
 	 * Gets the Hidden Prechat fields from the configuration response object.
@@ -4934,8 +5244,9 @@
 		}
 
 		if (hiddenFields && typeof hiddenFields === "object") {
+			const hiddenPrechatFieldsFromConfig = getHiddenPrechatFieldsFromConfig();
 			for (const [fieldName, fieldValue] of Object.entries(hiddenFields)) {
-				if (validatePrechatField('setHiddenPrechatFields', fieldName, fieldValue)) {
+				if (validatePrechatField('setHiddenPrechatFields', fieldName, fieldValue, hiddenPrechatFieldsFromConfig)) {
 					hiddenPrechatFields[fieldName] = fieldValue;
 					// Log successful update action on Hidden Prechat fields for debugging purposes.
 					log("setHiddenPrechatFields", `[setHiddenPrechatFields] Successfully updated Hidden Pre-Chat field ${fieldName}.`);
@@ -4990,7 +5301,7 @@
 			const visibleFieldsEntries = Object.entries(visibleFields);
 
 			for (const [fieldName, fieldData] of visibleFieldsEntries) {
-				if (validatePrechatField('setVisiblePrechatFields', fieldName, fieldData.value, fieldData['isEditableByEndUser'])) {
+				if (validatePrechatField('setVisiblePrechatFields', fieldName, fieldData.value, formFields, fieldData['isEditableByEndUser'])) {
 					const matchedField = formFields.find((field) => field.name === fieldName);
 					matchedField['value'] = fieldData['value'];
 
@@ -5007,7 +5318,7 @@
 			// Send updated pre-filled visible fields to iframe.
 			if (visibleFieldsEntries.length) {
 				appLoadedPromise.then(() => {
-					sendPostMessageToAppIframe(EMBEDDED_MESSAGING_PUSH_VISIBLE_PRECHAT_FIELDS, getVisiblePrechatFieldsFromConfig());
+					sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_PUSH_VISIBLE_PRECHAT_FIELDS, getVisiblePrechatFieldsFromConfig());
 				});
 			}
 		} else {
@@ -5044,7 +5355,7 @@
 
 			// Send updated pre-filled visible fields to iframe.
 			appLoadedPromise.then(() => {
-				sendPostMessageToAppIframe(EMBEDDED_MESSAGING_PUSH_VISIBLE_PRECHAT_FIELDS, getVisiblePrechatFieldsFromConfig());
+				sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_PUSH_VISIBLE_PRECHAT_FIELDS, getVisiblePrechatFieldsFromConfig());
 			});
 		} else {
 			error("unsetVisiblePrechatFields", `When calling unsetVisiblePrechatFields, you must pass in an array of fields.`);
@@ -5081,26 +5392,6 @@
 	function shouldProcessAutoResponseParametersFromHost(caller) {
 		if (!hasEmbeddedMessagingReadyEventFired) {
 			error("shouldProcessAutoResponseParametersFromHost", `[${caller}] Cannot invoke Auto-Response API before the onEmbeddedMessagingReady event is fired.`);
-			return false;
-		}
-
-		return true;
-	}
-
-	/**
-	 * Validate an auto-response's page query string parameter set by host via the `setAutoResponseParameters` API method
-	 * @param {String} parameterName - Key of auto-response page parameter provided by host.
-	 * @param {String} parameterValue - Value of auto-response page parameter provided by host.
-	 * @returns {Boolean} Returns true if parameter key and/or value are valid. Otherwise, returns false.
-	 */
-	function validateAutoResponseParameter(parameterName, parameterValue) {
-		if (typeof parameterName !== "string" || parameterName.trim().length < 1) {
-			error("validateAutoResponseParameter", `Expected a non-empty string for the parameter name, but received ${typeof parameterName}`);
-			return false;
-		}
-
-		if (typeof parameterValue !== "string" || parameterValue.trim().length < 1) {
-			error("validateAutoResponseParameter", `Expected a non-empty string for the parameter value, but received ${typeof parameterValue}`);
 			return false;
 		}
 
@@ -5207,6 +5498,12 @@
 			const conversationButton = getEmbeddedMessagingConversationButton();
 			if (conversationButton) {
 				conversationButton.style.display = "block";
+
+				// If invitations is enabled, evaluatue if invitation should be shown along with button.
+				if (hasInvitationsEnabled()) {
+					embeddedservice_bootstrap.invitations.evaluate();
+				}
+
 				return true;
 			} else if (isChannelMenuDeployment()) {
 				emitEmbeddedMessagingChannelMenuVisibilityChangeEvent(true);
@@ -5231,6 +5528,11 @@
 
 		// We only hide the button if iframe is not present
 		if (!embeddedservice_bootstrap.utilAPI.getEmbeddedMessagingFrame()) {
+			const notificationArea = document.getElementById(MINIMIZED_NOTIFICATION_AREA_CLASS);
+			if (notificationArea) {
+				notificationArea.parentNode.removeChild(notificationArea);
+			}
+
 			const conversationButton = getEmbeddedMessagingConversationButton();
 			if (conversationButton) {
 				conversationButton.style.display = "none";
@@ -5337,7 +5639,7 @@
 					if (iframe && iframe.classList && iframe.classList.contains(MODAL_ISMINIMIZED_CLASS)) {
 						let successMessage;
 
-						sendPostMessageToAppIframe(APP_MAXIMIZE_EVENT_NAME);
+						sendPostMessageToAppIframe(EVENT.APP_MAXIMIZE_EVENT_NAME);
 
 						successMessage = `[Launch Chat API] Successfully maximized the messaging client.`;
 
@@ -5395,7 +5697,7 @@
 				sendTextMessagePromiseResolve = resolve;
 				sendTextMessagePromiseReject = reject;
 				// Calling container's send text message API.
-				sendPostMessageToAppIframe(EMBEDDED_MESSAGING_PUBLIC_SEND_TEXT_MESSAGE_API_REQUEST_EVENT_NAME, text);
+				sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_PUBLIC_SEND_TEXT_MESSAGE_API_REQUEST_EVENT_NAME, text);
 			} catch(e) {
 				sendTextMessagePromiseResolve = undefined;
 				sendTextMessagePromiseReject = undefined;
@@ -5454,6 +5756,37 @@
 	}
 
 	/*********************************************************
+	 *		    Invitation API         *
+	 **********************************************************/
+
+	/**
+	 * Invitation API methods exposed in window.embeddedservice_bootstrap.invitationsAPI
+	 * for setting/updating/removing custom variables for invitations from the host domain.
+	 * @class
+	 */
+	function EmbeddedMessagingInvitation() {}
+
+	/**
+	 * EXTERNAL API - DO NOT CHANGE SHAPE!
+	 * 
+	 * Sets a new custom variable or updates an existing variable with the passed in value.
+     * @param {object} customVariables - an object (in the form of a Map) of key-value pairs (e.g. { CustomVariableName1 : CustomVariableValue1, CustomVariableName2 : CustomVariableValue2 }) of custom variables as set by the host.
+	 */
+	EmbeddedMessagingInvitation.prototype.setCustomVariables = function setCustomVariables(customVariables) {
+		embeddedservice_bootstrap.invitations.setCustomVariable(customVariables);
+	}
+
+	/**
+	 * EXTERNAL API - DO NOT CHANGE SHAPE!
+	 * 
+	 * Removes an existing custom variable with the passed in key name.
+	 * @param {object} customVariables - an object (in the form of an Array) of custom variable names (e.g. [ CustomVariableName1, CustomVariableName2 ]) to be removed/deleted.
+	 */
+	EmbeddedMessagingInvitation.prototype.removeCustomVariables = function removeCustomVariables(customVariables) {
+		embeddedservice_bootstrap.invitations.removeCustomVariables(customVariables);
+	}
+
+	/*********************************************************
 	 *		    Embedded Messaging Bootstrap Object          *
 	 **********************************************************/
 	/**
@@ -5479,11 +5812,17 @@
 			MINIMIZE_MODAL: {
 				value: "M47.6,17.8L27.1,38.5c-0.6,0.6-1.6,0.6-2.2,0L4.4,17.8c-0.6-0.6-0.6-1.6,0-2.2l2.2-2.2 c0.6-0.6,1.6-0.6,2.2,0l16.1,16.3c0.6,0.6,1.6,0.6,2.2,0l16.1-16.2c0.6-0.6,1.6-0.6,2.2,0l2.2,2.2C48.1,16.3,48.1,17.2,47.6,17.8z"
 			},
-			REFRESH: {
-				value: "M46.5,4h-3C42.7,4,42,4.7,42,5.5v7c0,0.9-0.5,1.3-1.2,0.7l0,0c-0.3-0.4-0.6-0.7-1-1c-5-5-12-7.1-19.2-5.7 c-2.5,0.5-4.9,1.5-7,2.9c-6.1,4-9.6,10.5-9.7,17.5c-0.1,5.4,2,10.8,5.8,14.7c4,4.2,9.4,6.5,15.2,6.5c5.1,0,9.9-1.8,13.7-5 c0.7-0.6,0.7-1.6,0.1-2.2l-2.1-2.1c-0.5-0.5-1.4-0.6-2-0.1c-3.6,3-8.5,4.2-13.4,3c-1.3-0.3-2.6-0.9-3.8-1.6 C11.7,36.6,9,30,10.6,23.4c0.3-1.3,0.9-2.6,1.6-3.8C15,14.7,19.9,12,25.1,12c4,0,7.8,1.6,10.6,4.4c0.5,0.4,0.9,0.9,1.2,1.4 c0.3,0.8-0.4,1.2-1.3,1.2h-7c-0.8,0-1.5,0.7-1.5,1.5v3.1c0,0.8,0.6,1.4,1.4,1.4h18.3c0.7,0,1.3-0.6,1.3-1.3V5.5 C48,4.7,47.3,4,46.5,4z"
-			}, 
 			DISMISS: {
 				value: "M75.129 24.871a6.25 6.25 0 010 8.839L58.839 50l16.29 16.29a6.25 6.25 0 01-8.839 8.839L50 58.839 33.71 75.129a6.25 6.25 0 01-8.839-8.839L41.161 50 24.871 33.71a6.25 6.25 0 018.839-8.839L50 41.161l16.29-16.29a6.25 6.25 0 018.839 0z"
+			},
+			ERROR: {
+				value: "M15.9997 1.23096C7.87662 1.23096 1.23047 7.87711 1.23047 16.0002C1.23047 24.1233 7.87662 30.7694 15.9997 30.7694C24.1228 30.7694 30.7689 24.1233 30.7689 16.0002C30.7689 7.87711 24.1228 1.23096 15.9997 1.23096ZM4.92282 16.0001C4.92282 9.90783 9.90744 4.92321 15.9997 4.92321C18.3997 4.92321 20.6151 5.66167 22.3997 6.95398L6.95359 22.4001C5.66128 20.6155 4.92282 18.4001 4.92282 16.0001V16.0001ZM15.9995 27.0772C13.5995 27.0772 11.3841 26.3387 9.59946 25.0464L25.0456 9.60024C26.3379 11.3849 27.0764 13.6002 27.0764 16.0002C27.0764 22.0926 22.0918 27.0772 15.9995 27.0772Z"
+			},
+			INNER_ARC: {
+				value: "M35.526 48.684A35.526 35.526 0 0 0 0 13.158V0a48.684 48.684 0 0 1 0 97.368V84.211a35.526 35.526 0 0 0 35.526-35.527Z"
+			},
+			OUTER_ARC: {
+				value: "M50 8.333C26.987 8.333 8.333 26.987 8.333 50S26.987 91.667 50 91.667V100C22.387 100 0 77.613 0 50S22.387 0 50 0s50 22.387 50 50h-8.333C91.667 26.987 73.013 8.333 50 8.333Z"
 			}
 		});
 
@@ -5674,13 +6013,15 @@
 
 				iframe.className = LWR_IFRAME_NAME;
 				iframe.id = LWR_IFRAME_NAME;
-				iframe.onload = resolve;
-				iframe.onerror = reject;
 				iframe.style.backgroundColor = "transparent";
+				// Hide until load so unstyled default iframe dimensions / blank document do not flash.
+				iframe.style.visibility = "hidden";
 
 				// Apply custom iframe allow list from snippet setting
 				if (typeof embeddedservice_bootstrap.settings.iframeAllow === "string") {
-					iframe.allow = embeddedservice_bootstrap.settings.iframeAllow;
+					iframe.allow = embeddedservice_bootstrap.settings.iframeAllow + " autofocus";
+				} else {
+					iframe.allow = "autofocus"
 				}
 
 				iframe.allowTransparency = "true";
@@ -5688,6 +6029,7 @@
 				iframe.setAttribute("role", "dialog");
 				iframe.setAttribute("aria-modal", "true");
 				iframe.setAttribute("data-f6-region", "");
+				iframe.setAttribute("tabindex", "0");
 
 				if (isAppDisplayModeInline()) {
 					iframe.classList.add(LWR_INLINE_IFRAME_CLASS);
@@ -5729,8 +6071,16 @@
 				}
 
 				iframe.onload = () => {
+					iframe.style.visibility = "";
 					log("createIframe", `Created Embedded Messaging frame.`);
+
+					// Set focus in iframe to allow Safari to set focus in input
+					if (isUserSafariBrowser()) {
+						iframe.focus();
+					}
+					resolve();
 				};
+				iframe.onerror = reject;
 
 				parent.appendChild(modal);
 				parent.appendChild(iframe);
@@ -5789,6 +6139,7 @@
 			const height = data && data.height ? `${data.height}px` : `${DEFAULT_WINDOW_HEIGHT}px`;
 			document.documentElement.style.setProperty("--eswWidth", width);
 			document.documentElement.style.setProperty("--eswHeight", height);
+			frame.style.visibility = "";
 		}
 
 		if(button) {
@@ -5847,8 +6198,8 @@
 			viewportMetaTag.setAttribute("content", ANDROID_CHROME_VIEWPORT_META_TAG);
 		}
 
-		// [A11Y] Only on mobile web
-		if (isMobile()) {
+		// [A11Y] Disable background elements for mobile or for desktop if setting is enabled
+		if (isMobile() || embeddedservice_bootstrap.settings.disableBackgroundWhenChatIsMaximized) {
 			toggleInertOnSiblingElements(true);
 		}
 
@@ -5856,7 +6207,7 @@
 			captchaBanner.classList.add(MODAL_ISMAXIMIZED_CLASS);
 		}
 
-		sendPostMessageToAppIframe(EMBEDDED_MESSAGING_MAXIMIZE_RESIZING_COMPLETED_EVENT_NAME);
+		sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_MAXIMIZE_RESIZING_COMPLETED_EVENT_NAME);
 		log("maximizeIframe", `Maximized the app`);
 		dispatchEventToHost(ON_EMBEDDED_MESSAGING_WINDOW_MAXIMIZED_EVENT_NAME);
 	};
@@ -5887,6 +6238,7 @@
 				frame.classList.remove(IFRAME_BOTTOM_TAB_BAR_MAXIMIZED_CLASS);
 				frame.classList.add(IFRAME_BOTTOM_TAB_BAR_MINIMIZED_CLASS);
 			}
+			frame.style.visibility = "";
 		}
 
 		// Remove the minimize icon from the button.
@@ -5923,8 +6275,8 @@
 			restoreViewportMetaTag();
 		}
 
-		// [A11Y] Only on mobile web
-		if (isMobile()) {
+		// [A11Y] Enable background elements on mobile web or if setting is enabled for desktop
+		if (isMobile() || embeddedservice_bootstrap.settings.disableBackgroundWhenChatIsMaximized) {
 			toggleInertOnSiblingElements(false);
 		}
 
@@ -5932,7 +6284,7 @@
 			captchaBanner.classList.remove(MODAL_ISMAXIMIZED_CLASS);
 		}
 
-		sendPostMessageToAppIframe(EMBEDDED_MESSAGING_MINIMIZE_RESIZING_COMPLETED_EVENT_NAME);
+		sendPostMessageToAppIframe(EVENT.EMBEDDED_MESSAGING_MINIMIZE_RESIZING_COMPLETED_EVENT_NAME);
 		log("minimizeIframe", `Minimized the app`);
 		dispatchEventToHost(ON_EMBEDDED_MESSAGING_WINDOW_MINIMIZED_EVENT_NAME);
 	};
@@ -5992,7 +6344,13 @@
 	 * @returns {boolean}
 	 */
 	function shouldLoadReCaptchaScript() {
-		return (isRecaptchaEnabled() && !sessionExists() && getAuthMode() !== AUTH_MODE.EXP_SITE_AUTH && (typeof grecaptcha === 'undefined'));
+		// Check if auth mode is not experience site auth
+		const isNotExpSiteAuth = getAuthMode() !== AUTH_MODE.EXP_SITE_AUTH;
+
+		// Check if reCAPTCHA client ID or grecaptcha is undefined
+		const isRecaptchaNotLoaded = typeof recaptchaClientId === 'undefined' || typeof grecaptcha === 'undefined';
+
+		return (isRecaptchaEnabled() && !sessionExists() && isNotExpSiteAuth && isRecaptchaNotLoaded);
 	}
 
 	/**
@@ -6004,6 +6362,10 @@
 	 */
 	function loadReCaptchaScript() {
 		return new Promise( (resolve, reject) => {
+            const recaptchaContainer = document.getElementById(GRECAPTCHA_BANNER_DIV);
+            if (recaptchaContainer && recaptchaContainer.parentNode) {
+                recaptchaContainer.parentNode.removeChild(recaptchaContainer);
+            }
 			const messagingChannel = embeddedservice_bootstrap.settings.embeddedServiceConfig.messagingChannel;
 			const siteKey = messagingChannel.captchaInfo.siteKey;
 			const script = document.createElement('script');
@@ -6087,24 +6449,38 @@
 	function getAgentAvailability() {
 		return new Promise((resolve, reject) => {
 			const checkAvailability = () => {
-				getAgentAvailabilityData()
-					.then((agentAvailable) => {
-						log("getAgentAvailability", `Received getAgentAvailability API response: ${agentAvailable}`);
-						if (agentAvailable === true) {
-							clearAgentAvailabilityTimer()
-							setupAgentAvailabilityTimer();
-							// Resolve the promise if agent is available
-							resolve(true);
-						} else {
-							// Retry after 30 seconds
+				if(sessionExists()) {
+					resolve(true);
+					return;
+				}
+				if(isTabActive) {
+					getAgentAvailabilityData()
+						.then((result) => {
+							const { agentAvailable, isRateLimited } = result;
+							log("getAgentAvailability", `Received getAgentAvailability API response: ${agentAvailable}, rateLimited: ${isRateLimited}`);
+							
+							if (agentAvailable === true) {
+								// Backoff already reset in getAgentAvailabilityData() on success
+								clearAgentAvailabilityTimer();
+								setupAgentAvailabilityTimer();
+								// Resolve the promise if agent is available
+								resolve(true);
+							} else {
+								// Use backoff delay if rate limited, otherwise use normal timeout
+								const retryDelay = isRateLimited ? agentAvailabilityBackoffDelay : AGENT_AVAILABILITY_TIMEOUT_MS;
+								log("getAgentAvailability", `Agent not available. Retrying in ${retryDelay}ms`);
+								setTimeout(checkAvailability, retryDelay);
+							}
+						})
+						.catch((error) => {
+							// Fallback error handling (shouldn't normally reach here since getAgentAvailabilityData always resolves)
+							error("getAgentAvailability", `getAgentAvailability API call failed, retrying in ${AGENT_AVAILABILITY_TIMEOUT_MS} milliseconds: ${error}`);
 							setTimeout(checkAvailability, AGENT_AVAILABILITY_TIMEOUT_MS);
-						}
-					})
-					.catch((error) => {
-						error("getAgentAvailability",`getAgentAvailability API call failed, retrying in ${AGENT_AVAILABILITY_TIMEOUT_MS} milliseconds: ${error}`);
-						// Retry after 30 seconds on error
-						setTimeout(checkAvailability, AGENT_AVAILABILITY_TIMEOUT_MS);
-					});
+						});
+				} else {
+					// Retry after normal timeout when tab is inactive
+					setTimeout(checkAvailability, AGENT_AVAILABILITY_TIMEOUT_MS);
+				}
 			};
 
 			// Initial call
@@ -6113,25 +6489,47 @@
 	}
 
 	/**
-	 * Set an agent availability timer that invokes a callback at every 30 seconds interval,
-	 * and makes call to agent availability API and shows/hides the button according to the response received..
+	 * Set an agent availability timer that invokes a callback at regular intervals,
+	 * and makes call to agent availability API and shows/hides the button according to the response received.
+	 * Only makes API calls when the tab is active to avoid redundant API calls across multiple tabs.
+	 * Uses exponential backoff for 429 rate limit errors.
 	 */
 	function setupAgentAvailabilityTimer() {
 		agentAvailabilityTimer = setInterval(() => {
+			if (sessionExists()) {
+				embeddedservice_bootstrap.utilAPI.showChatButton();
+				clearAgentAvailabilityTimer();
+				return;
+			}
+			// Only make API call if this tab is active
+			if (!isTabActive) {
+				return;
+			}
+			// Skip API call if we're still in backoff period
+			const now = Date.now();
+			if (now < agentAvailabilityBackoffUntil) {
+				return;
+			}
+
 			getAgentAvailabilityData()
-				.then((agentAvailable) => {
-					log("setupAgentAvailabilityTimer", `Received getAgentAvailability API response: ${agentAvailable}`);
+				.then((result) => {
+					const { agentAvailable, isRateLimited } = result;
+					log("setupAgentAvailabilityTimer", `Received getAgentAvailability API response: ${agentAvailable}, rateLimited: ${isRateLimited}`);
 					if (agentAvailable === true) {
-						if (isWithinBusinessHours() && (getAuthMode() === AUTH_MODE.UNAUTH || (getAuthMode() === AUTH_MODE.EXP_SITE_AUTH && !embeddedservice_bootstrap.settings.snippetConfig.isExpSiteGuestUser))) {
+						if (businessHoursUtils.isWithinBusinessHours() && (getAuthMode() === AUTH_MODE.UNAUTH || (getAuthMode() === AUTH_MODE.EXP_SITE_AUTH && !embeddedservice_bootstrap.settings.snippetConfig.isExpSiteGuestUser))) {
 							embeddedservice_bootstrap.utilAPI.showChatButton();
 						}
 					} else {
 						embeddedservice_bootstrap.utilAPI.hideChatButton();
+						// Note: agentAvailabilityBackoffDelay is already increased in getAgentAvailabilityData()
+						if (isRateLimited) {
+							agentAvailabilityBackoffUntil = now + agentAvailabilityBackoffDelay;
+						}
 					}
 				})
 				.catch((error) => {
-					error("setupAgentAvailabilityTimer",`getAgentAvailability API call failed, hiding chat button and retrying in ${AGENT_AVAILABILITY_TIMEOUT_MS} milliseconds: ${error}`);
-					// Hide Chat Button
+					// Fallback error handling (shouldn't normally reach here since getAgentAvailabilityData always resolves)
+					error("setupAgentAvailabilityTimer",`getAgentAvailability API call failed, hiding chat button: ${error}`);
 					embeddedservice_bootstrap.utilAPI.hideChatButton();
 				});
 		}, AGENT_AVAILABILITY_TIMEOUT_MS);
@@ -6139,10 +6537,14 @@
 
 	/**
 	 * Clears the agent availability timer and sets it to undefined to stop the agent availability API calls at every 30 seconds interval.
+	 * Also resets the backoff delay to base value.
 	 */
 	function clearAgentAvailabilityTimer() {
 		clearInterval(agentAvailabilityTimer);
 		agentAvailabilityTimer = undefined;
+		// Reset backoff delay and expiration when timer is cleared
+		agentAvailabilityBackoffDelay = AGENT_AVAILABILITY_BACKOFF_BASE_MS;
+		agentAvailabilityBackoffUntil = 0;
 	}
 
 	/**
@@ -6160,6 +6562,9 @@
 
 		// Initialize util API
 		embeddedservice_bootstrap.utilAPI = new EmbeddedMessagingUtil();
+
+		// Initialize invitation API
+		embeddedservice_bootstrap.invitationAPI = new EmbeddedMessagingInvitation();
 	}
 
 	/**
@@ -6172,7 +6577,7 @@
 	 */
 	EmbeddedServiceBootstrap.prototype.init = function init(orgId, eswConfigDevName, siteURL, snippetConfig) {
 		if (initialized) {
-			error("init", "Attempted to initialize bootstrap multiple times", null, true);
+			error("init", "Attempted to initialize bootstrap multiple times", null);
 			return;
 		}
 		initialized = true;
@@ -6182,11 +6587,32 @@
 			embeddedservice_bootstrap.settings.siteURL = siteURL;
 			embeddedservice_bootstrap.settings.snippetConfig = snippetConfig;
 
+			// Initialize LoggingUtils singleton instance.
+			loggingUtils = LoggingUtils.getInstance(
+				{
+					clientVersion: 'v1',
+					eswConfigDevName: embeddedservice_bootstrap.settings.eswConfigDevName,
+					devMode: Boolean(embeddedservice_bootstrap.settings.devMode),
+					getAuthMode,
+					getConversationId: () => conversationId
+				},
+				lwrIframeReadyPromise,
+				sendPostMessageToAppIframe
+			);
+
 			// Initialize a conversationId.
 			conversationId = generateUUID();
 			log("init", `Initialized a new conversationId: ${conversationId}`);
 
 			mergeSettings(snippetConfig || {});
+
+			// Initialize BusinessHoursUtils instance.
+			businessHoursUtils = new BusinessHoursUtils({
+				orgId: embeddedservice_bootstrap.settings.orgId,
+				scrt2URL: embeddedservice_bootstrap.settings.scrt2URL,
+				eswConfigDevName: embeddedservice_bootstrap.settings.eswConfigDevName,
+				businessHoursTimerCallback: businessHoursTimerCallback
+			});
 
 			validateInitParams();
 
@@ -6215,6 +6641,12 @@
 
 			// Whether to minimize the chat window when continuing an existing session in a new tab.
 			embeddedservice_bootstrap.settings.shouldMinimizeWindowOnNewTab = Boolean(embeddedservice_bootstrap.settings.shouldMinimizeWindowOnNewTab);
+
+			// Whether to disable launching chat immediately on init in inline display mode.
+			embeddedservice_bootstrap.settings.disableLaunchChatOnInit = Boolean(embeddedservice_bootstrap.settings.disableLaunchChatOnInit);
+
+			// Whether to disable background elements when chat is open for desktops
+			embeddedservice_bootstrap.settings.disableBackgroundWhenChatIsMaximized = Boolean(embeddedservice_bootstrap.settings.disableBackgroundWhenChatIsMaximized);
 
 			// Load CSS file for bootstrap.js from GSLB.
 			const cssPromise = loadCSS().then(
@@ -6293,16 +6725,23 @@
 			//once we have config we can check 3rd party storage
 			configPromise.then(() => {
 				sendPostMessageToSiteContextIframe(
-					EMBEDDED_MESSAGING_3P_STORAGE_REQUEST_EVENT_NAME, {orgId : embeddedservice_bootstrap.settings.orgId});
+					EVENT.EMBEDDED_MESSAGING_3P_STORAGE_REQUEST_EVENT_NAME, {orgId : embeddedservice_bootstrap.settings.orgId});
 				if(!embeddedservice_bootstrap.settings.disablePrefetch) {
 					prefetchResources();
 				}
 			});
 
 			// Retrieve Business Hours intervals for the deployment.
-			const businessHoursPromise = getBusinessHoursInterval()
+			const businessHoursPromise = businessHoursUtils.loadBusinessHours()
 				.then(
-					Promise.resolve.bind(Promise),
+					() => {
+						// If initially outside of business hours, fire an event to the host to handle outside of business hours on page load
+						if (!businessHoursUtils.isWithinBusinessHours()) {
+							dispatchEventToHost(BusinessHoursUtils.constants.ON_EMBEDDED_MESSAGING_BUSINESS_HOURS_ENDED_EVENT_NAME);
+						} else {
+							dispatchEventToHost(BusinessHoursUtils.constants.ON_EMBEDDED_MESSAGING_WITHIN_BUSINESS_HOURS_EVENT_NAME);
+						}
+					},
 					(err) => {
 						return handleBusinessHoursError(err);
 					}
@@ -6314,7 +6753,7 @@
 				});
 
 			const agentAvailabilityPromise = Promise.all([configPromise, businessHoursPromise, sessionDataPromise]).then(() => {
-				return (!isAgentAvailabilityCheckEnabled() || !isWithinBusinessHours() || sessionExists())
+				return (!isAgentAvailabilityCheckEnabled() || !businessHoursUtils.isWithinBusinessHours() || sessionExists())
 					? Promise.resolve(true)
 					: getAgentAvailability();
 			});
@@ -6339,15 +6778,15 @@
 						getExpSiteSessionTimeout();
 					}
 					embeddedservice_bootstrap.generateMarkup();
+				}
 
-					// Initialize invitations if enabled
-					if (hasInvitationsEnabled()){
-						initializeInvitations(Date.now());
-					}
+				// Initialize invitations if enabled
+				if (hasInvitationsEnabled() && !sessionExists() && !isChannelMenuDeployment() && !isAppDisplayModeInline()) {
+					initializeInvitations(Date.now());
 				}
 
 				// Launch chat immediately on init in inline display mode.
-				if (isAppDisplayModeInline()) {
+				if (isAppDisplayModeInline() && !embeddedservice_bootstrap.settings.disableLaunchChatOnInit) {
 					embeddedservice_bootstrap.utilAPI.launchChat();
 				}
 			});
@@ -6359,6 +6798,6 @@
 	if (!window.embeddedservice_bootstrap) {
 		window.embeddedservice_bootstrap = new EmbeddedServiceBootstrap();
 	} else {
-		error("bootstrap load", "attempting to load MIAW script when one is already loaded", null, true);
+		error("bootstrap load", "attempting to load MIAW script when one is already loaded", null);
 	}
 })();
