@@ -6,16 +6,17 @@
 <button type="button" id="showChatButton" onclick="showChatButton()"> Show </button></br></br>
 <button type="button" id="clearSessionButton" onclick="clearAuthSession()"> Clear Session </button>
 
-<!-- <script>
-    window.addEventListener("onEmbeddedMessagingReady", (event) => {
-  		console.log("Received the onEmbeddedMessagingReady event…");
-        const iframe = document.querySelector('.embeddedMessagingFrame');
-    	iframe.addEventListener('touchmove', (e) => {
-        	e.stopPropagation();
-        	e.preventDefault();
-    	}, {passive:false});
+<script>
+    window.addEventListener("onEmbeddedMessagingWindowMinimized", (event) => {
+  		console.log("Received the onEmbeddedMessagingWindowMinimized event");
+		console.log("CHAT EVENT - MINIMIZED");
 	});
-</script> -->
+
+	window.addEventListener("onEmbeddedMessagingWindowMaximized", (event) => {
+  		console.log("Received the onEmbeddedMessagingWindowMaximized event");
+		console.log("CHAT EVENT - MAXIMIZED");
+	});
+</script>
 
 <script type='text/javascript'>
 	function showChatButton() {
